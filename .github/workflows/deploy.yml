@@ -25,6 +25,7 @@
 #
 # Required environment variables on the "dev" environment:
 #   BICEP_RESOURCE_GROUP       — Resource group for Bicep deployments
+#   TF_RESOURCE_GROUP          — Pre-existing resource group for Terraform deployments
 #   TF_STATE_RESOURCE_GROUP    — Resource group hosting TF state storage
 #   TF_STATE_STORAGE_ACCOUNT   — Storage account name for Terraform state
 #   TF_STATE_CONTAINER         — Blob container name  (e.g. "tfstate")
@@ -348,12 +349,16 @@ jobs:
       # ── 6. Terraform plan ────────────────────────────────────────────────────
       # Writes a binary plan file (tfplan) consumed by apply, and a human-
       # readable text copy (plan.txt) for the Step Summary.
+      # set -o pipefail ensures a non-zero exit from terraform is not masked
+      # by the tee process that follows it in the pipeline.
       - name: Terraform plan
         id: tf_plan
         run: |
+          set -o pipefail
           terraform -chdir=src/terraform plan \
             -var-file=terraform.tfvars \
             -var="environment_name=dev" \
+            -var="resource_group_name=${{ vars.TF_RESOURCE_GROUP }}" \
             -out=tfplan \
             -no-color \
             2>&1 | tee src/terraform/plan.txt
@@ -373,10 +378,15 @@ jobs:
 
       # ── 7. Terraform apply ───────────────────────────────────────────────────
       # Applies the saved plan file. -auto-approve is safe here because the plan
-      # was already reviewed/approved by the environment protection gate above.
+      # was already gated by the "dev" GitHub Environment protection rules above
+      # (Settings → Environments → dev → Required reviewers), which require
+      # explicit approval before this job can run.
+      # set -o pipefail ensures a non-zero exit from terraform is not masked
+      # by the tee process that follows it in the pipeline.
       - name: Terraform apply
         id: tf_apply
         run: |
+          set -o pipefail
           terraform -chdir=src/terraform apply \
             -auto-approve \
             tfplan \
