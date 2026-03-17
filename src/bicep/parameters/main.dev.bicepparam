@@ -18,7 +18,7 @@ param workloadName = 'afdblobbic'
 
 param environmentName = 'dev'
 
-param locationShort = 'centralus'
+param locationShort = 'cus'
 
 // ── Networking ────────────────────────────────────────────────────────────────
 
