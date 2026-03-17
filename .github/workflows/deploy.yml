@@ -25,10 +25,13 @@
 #
 # Required environment variables on the "dev" environment:
 #   BICEP_RESOURCE_GROUP       — Resource group for Bicep deployments
-#   TF_RESOURCE_GROUP          — Pre-existing resource group for Terraform deployments
 #   TF_STATE_RESOURCE_GROUP    — Resource group hosting TF state storage
 #   TF_STATE_STORAGE_ACCOUNT   — Storage account name for Terraform state
 #   TF_STATE_CONTAINER         — Blob container name  (e.g. "tfstate")
+#
+# Optional environment variables on the "dev" environment:
+#   TF_RESOURCE_GROUP          — Override the resource group for Terraform deployments.
+#                                When absent, the value in terraform.tfvars is used.
 # ──────────────────────────────────────────────────────────────────────────────
 
 name: CI / CD — Afd-Blob-Storage
@@ -351,14 +354,30 @@ jobs:
       # readable text copy (plan.txt) for the Step Summary.
       # set -o pipefail ensures a non-zero exit from terraform is not masked
       # by the tee process that follows it in the pipeline.
+      #
+      # TF_RESOURCE_GROUP is an optional GitHub Environment variable. When set
+      # it overrides the resource_group_name value in terraform.tfvars, which
+      # is useful for promoting across environments.  When the variable is
+      # absent or empty the tfvars default (rg-afdblobtf-dev) is used so that
+      # a missing variable never causes a blank-name error.
       - name: Terraform plan
         id: tf_plan
+        env:
+          TF_RESOURCE_GROUP: ${{ vars.TF_RESOURCE_GROUP }}
         run: |
           set -o pipefail
+
+          # Build the resource-group override flag only when the env var is
+          # non-empty; otherwise fall back to the value in terraform.tfvars.
+          RG_OVERRIDE=()
+          if [ -n "$TF_RESOURCE_GROUP" ]; then
+            RG_OVERRIDE=(-var "resource_group_name=$TF_RESOURCE_GROUP")
+          fi
+
           terraform -chdir=src/terraform plan \
             -var-file=terraform.tfvars \
             -var="environment_name=dev" \
-            -var="resource_group_name=${{ vars.TF_RESOURCE_GROUP }}" \
+            "${RG_OVERRIDE[@]}" \
             -out=tfplan \
             -no-color \
             2>&1 | tee src/terraform/plan.txt
