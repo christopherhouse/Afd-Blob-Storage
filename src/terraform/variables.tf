@@ -125,6 +125,11 @@ variable "kv_soft_delete_retention_days" {
 # Tagging
 # ---------------------------------------------------------------------------
 
+variable "resource_group_name" {
+  type        = string
+  description = "Name of the pre-existing resource group to deploy resources into. The resource group must already exist; Terraform will not create it."
+}
+
 variable "owner_tag" {
   type        = string
   description = "Team or individual responsible for these resources. Used in the 'owner' tag."

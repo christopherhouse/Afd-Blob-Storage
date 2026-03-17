@@ -82,7 +82,6 @@ locals {
 
   # Canonical resource names (CAF-compliant prefixes).
   names = {
-    resource_group          = "rg-${local.resource_prefix}"
     vnet                    = "vnet-${local.resource_prefix}"
     private_endpoint_subnet = "snet-pe-${local.resource_prefix}"
     storage_account         = local.storage_account_name
@@ -102,13 +101,12 @@ locals {
 }
 
 ###############################################################################
-# Resource Group
+# Resource Group — existing resource (not managed by Terraform)
+# The resource group must be created prior to running this module.
 ###############################################################################
 
-resource "azurerm_resource_group" "this" {
-  name     = local.names.resource_group
-  location = var.location
-  tags     = local.common_tags
+data "azurerm_resource_group" "this" {
+  name = var.resource_group_name
 }
 
 ###############################################################################
@@ -119,8 +117,8 @@ resource "azurerm_resource_group" "this" {
 module "networking" {
   source = "./modules/networking"
 
-  resource_group_id              = azurerm_resource_group.this.id
-  location                       = azurerm_resource_group.this.location
+  resource_group_id              = data.azurerm_resource_group.this.id
+  location                       = data.azurerm_resource_group.this.location
   name                           = local.names.vnet
   subnet_name                    = local.names.private_endpoint_subnet
   address_space                  = var.address_space
@@ -137,8 +135,8 @@ module "networking" {
 module "monitoring" {
   source = "./modules/monitoring"
 
-  resource_group_name = azurerm_resource_group.this.name
-  location            = azurerm_resource_group.this.location
+  resource_group_name = data.azurerm_resource_group.this.name
+  location            = data.azurerm_resource_group.this.location
   name                = local.names.log_analytics_workspace
   sku                 = var.law_sku
   retention_in_days   = var.law_retention_days
@@ -154,8 +152,8 @@ module "monitoring" {
 module "storage" {
   source = "./modules/storage"
 
-  resource_group_name      = azurerm_resource_group.this.name
-  location                 = azurerm_resource_group.this.location
+  resource_group_name      = data.azurerm_resource_group.this.name
+  location                 = data.azurerm_resource_group.this.location
   name                     = local.names.storage_account
   account_replication_type = var.storage_account_replication_type
   tags                     = local.common_tags
@@ -170,8 +168,8 @@ module "storage" {
 module "security" {
   source = "./modules/security"
 
-  resource_group_name        = azurerm_resource_group.this.name
-  location                   = azurerm_resource_group.this.location
+  resource_group_name        = data.azurerm_resource_group.this.name
+  location                   = data.azurerm_resource_group.this.location
   name                       = local.names.key_vault
   tenant_id                  = data.azurerm_client_config.current.tenant_id
   sku_name                   = var.kv_sku_name

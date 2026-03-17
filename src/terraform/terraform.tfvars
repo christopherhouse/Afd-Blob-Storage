@@ -17,9 +17,10 @@
 # ---------------------------------------------------------------------------
 # Suffix "tf" differentiates Terraform-deployed resources from the Bicep
 # deployment (afdblobbic) so both can coexist in the same subscription.
-workload_name    = "afdblobtf"
-environment_name = "dev"
-location         = "centralus"
+workload_name       = "afdblobtf"
+environment_name    = "dev"
+location            = "centralus"
+resource_group_name = "rg-afdblobtf-dev"
 
 # ---------------------------------------------------------------------------
 # Networking
