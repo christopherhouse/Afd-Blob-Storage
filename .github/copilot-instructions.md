@@ -77,6 +77,60 @@ GitHub Actions workflows live in `.github/workflows/` and handle linting, valida
 
 ---
 
+## Available MCP Servers
+
+The following Model Context Protocol (MCP) servers are available to all agents in this repository. **Always prefer these tools over relying on training-data knowledge** when looking up service documentation, API schemas, provider resources, or code examples — they return current, authoritative content.
+
+### Microsoft Learn MCP Server (`microsoft-docs`)
+
+Provides direct access to official Microsoft and Azure documentation.
+
+| Tool | When to Use |
+|---|---|
+| `microsoft_docs_search(query)` | Find Azure service docs, CAF/WAF guidance, API reference, how-to articles. Returns up to 10 relevant chunks. |
+| `microsoft_code_sample_search(query, language?)` | Retrieve official code examples from MS Learn (Bicep, ARM, PowerShell, Azure CLI, etc.). Specify `language` for better results. |
+| `microsoft_docs_fetch(url)` | Fetch the **full content** of a specific MS Learn page as markdown when a search result is incomplete or you need the complete procedure. |
+
+**Use MS Learn MCP for:**
+- Azure resource property reference (e.g., valid values for `publicNetworkAccess`, WAF rule set versions)
+- CAF naming convention lookups
+- Front Door, WAF, Private Endpoint, Storage configuration guidance
+- Required RBAC roles and permissions
+- Bicep `@description` decorator examples and AVM module patterns
+- Troubleshooting guidance (Private Link approval, DNS resolution, WAF false positives)
+
+**Usage pattern:**
+```
+1. microsoft_docs_search("azure front door private link blob storage")
+2. If a result page looks highly relevant → microsoft_docs_fetch(<url>) for full detail
+```
+
+### Context7 MCP Server (`context7`)
+
+Provides up-to-date library and SDK documentation with real code snippets, sourced from official registries and documentation sites.
+
+| Tool | When to Use |
+|---|---|
+| `context7-resolve-library-id(libraryName, query)` | Resolve a package/library name to a Context7 library ID. **Must be called first** before querying documentation. |
+| `get-library-docs(libraryId, topic?, tokens?)` | Fetch documentation and code examples for the resolved library. |
+
+**Use Context7 MCP for:**
+- **Terraform AzureRM provider** resource schemas and argument references (`hashicorp/terraform-provider-azurerm`)
+- **Bicep / Azure Verified Modules (AVM)** registry patterns
+- **GitHub Actions** — finding correct action versions, input/output schemas (e.g., `azure/login`, `hashicorp/setup-terraform`)
+- Any npm, pip, or other package documentation needed during workflow authoring
+
+**Usage pattern (two-step — always follow this order):**
+```
+1. context7-resolve-library-id("azurerm", "azurerm_cdn_frontdoor_profile resource")
+   → returns libraryId, e.g. "/hashicorp/terraform-provider-azurerm"
+2. get-library-docs("/hashicorp/terraform-provider-azurerm", topic="cdn_frontdoor_profile")
+```
+
+> **Note:** Never skip step 1. The `libraryId` from `resolve-library-id` is required for `get-library-docs`. If `resolve-library-id` returns multiple matches, select the one with the highest benchmark score and most relevant description.
+
+---
+
 ## Repository Structure (Target)
 
 ```

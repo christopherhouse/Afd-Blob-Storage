@@ -246,3 +246,46 @@ terraform apply tfplan
 - Do not use `local-exec` provisioners – use native AzureRM resources.
 - Sensitive outputs must be marked `sensitive = true`.
 - Use `for_each` over `count` when iterating over named resources.
+
+---
+
+## MCP Servers Available to This Agent
+
+### Context7 MCP (`context7`) — Primary Reference for AzureRM Provider
+
+**Always** use Context7 to look up the current AzureRM provider resource schema before writing or reviewing Terraform resource blocks. Provider argument names, required vs. optional attributes, and nested block structures change across provider versions.
+
+**Two-step lookup pattern (mandatory):**
+```
+Step 1 — Resolve the library:
+  context7-resolve-library-id("terraform-provider-azurerm", "<resource you need>")
+  → Select the result with the highest benchmark score
+
+Step 2 — Fetch documentation:
+  get-library-docs("<libraryId>", topic="<resource_type>")
+  e.g. get-library-docs("/hashicorp/terraform-provider-azurerm", topic="azurerm_cdn_frontdoor_origin")
+```
+
+**Key resources to look up via Context7:**
+
+| Resource | Context7 Topic |
+|---|---|
+| `azurerm_cdn_frontdoor_profile` | `"cdn frontdoor profile"` |
+| `azurerm_cdn_frontdoor_firewall_policy` | `"cdn frontdoor firewall policy"` |
+| `azurerm_cdn_frontdoor_origin` + private link | `"cdn frontdoor origin private link"` |
+| `azurerm_cdn_frontdoor_route` | `"cdn frontdoor route"` |
+| `azurerm_cdn_frontdoor_security_policy` | `"cdn frontdoor security policy"` |
+| `azurerm_storage_account` | `"storage account public network access"` |
+| `azurerm_private_endpoint` | `"private endpoint dns zone group"` |
+| `azurerm_private_dns_zone_virtual_network_link` | `"private dns zone virtual network link"` |
+
+### Microsoft Learn MCP (`microsoft-docs`) — Use for Azure Concepts
+
+Use MS Learn MCP when you need to understand the **Azure-side behavior** of a resource (e.g., what Private Link approval actually does, how AFD routes requests, storage network rule precedence):
+
+```
+microsoft_docs_search("azure front door private link approval terraform")
+microsoft_docs_search("azure storage account network rules deny bypass none")
+```
+
+Also use `microsoft_code_sample_search(query, language="terraform")` to find official Terraform examples published on MS Learn.

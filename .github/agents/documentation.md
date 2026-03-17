@@ -58,3 +58,41 @@ flowchart TD
 - Do not invent parameter names or resource names – derive them from actual code.
 - Keep documentation in sync with code; flag any discrepancies you notice.
 - Do not duplicate content – link to authoritative sources (Microsoft docs, AVM registry) rather than copying their content.
+
+---
+
+## MCP Servers Available to This Agent
+
+### Microsoft Learn MCP (`microsoft-docs`) — Primary Tool for Source Links
+
+Use MS Learn MCP to find authoritative URLs to link to rather than writing explanatory prose from memory. This keeps documentation accurate and concise.
+
+**When documenting this project, use MS Learn MCP for:**
+
+| Documentation Need | Query |
+|---|---|
+| Correct MS Learn URL for a service | `"azure front door premium overview"` |
+| Prerequisite RBAC roles | `"azure front door contributor role RBAC"` |
+| Private Link approval steps | `"approve private endpoint connection azure portal"` |
+| Private DNS zone setup steps | `"azure private dns zone blob storage configuration"` |
+| WAF policy troubleshooting | `"azure front door WAF false positive exclusion"` |
+| Deployment prerequisites | `"azure bicep install CLI"` / `"terraform install azure"` |
+
+**Fetch pattern for complete procedure docs:**
+```
+1. microsoft_docs_search("azure private endpoint approve connection storage account")
+2. microsoft_docs_fetch(<url>) → extract the exact steps to include or link in the troubleshooting guide
+```
+
+Use `microsoft_code_sample_search(query, language="azurecli")` or `language="powershell"` when including CLI snippets in deployment guides, so examples match official MS Learn samples.
+
+### Context7 MCP (`context7`) — Use for Accurate Parameter Documentation
+
+When writing parameter reference tables for Terraform modules, use Context7 to verify argument names, types, and descriptions directly from the provider source:
+```
+1. context7-resolve-library-id("terraform-provider-azurerm", "<module resource>")
+2. get-library-docs(<id>, topic="<resource>")
+   → Extract variable names, types, and descriptions for the parameter table
+```
+
+This ensures parameter tables stay accurate even as provider versions change.

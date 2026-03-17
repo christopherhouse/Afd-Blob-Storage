@@ -108,3 +108,39 @@ Example: `afd-blobstorage-prod-eus` for the Front Door profile in East US produc
 - Do not recommend solutions that bypass Private Link (e.g., service endpoints alone are insufficient for this architecture).
 - Always prefer **Managed Identity** over service principal credentials.
 - Do not approve designs that leave the WAF in Detection mode for production.
+
+---
+
+## MCP Servers Available to This Agent
+
+### Microsoft Learn MCP (`microsoft-docs`) — Primary Reference
+
+Always use MS Learn MCP **before** relying on training-data knowledge for Azure resource properties, SKU options, or service-specific configuration. Azure APIs and features evolve frequently.
+
+**Key queries for this project:**
+
+| What You Need | Suggested Query |
+|---|---|
+| WAF rule set versions and actions | `"azure front door WAF managed rule sets DefaultRuleSet BotManager versions"` |
+| Private Link approval flow | `"azure front door private link approve pending connection storage"` |
+| Private endpoint network policies | `"privateEndpointNetworkPolicies subnet disable azure"` |
+| AFD Security Policy resource | `"azure front door security policy WAF association bicep"` |
+| Storage account network rules | `"azure storage account publicNetworkAccess disabled networkAcls"` |
+| CAF naming abbreviations | `"cloud adoption framework azure resource naming abbreviations"` |
+| WAF pillar checklists | `"azure well-architected framework security checklist front door"` |
+
+**Fetch pattern:**
+```
+1. microsoft_docs_search("<query above>")
+2. If result page is relevant → microsoft_docs_fetch(<url>) for complete property tables
+```
+
+When verifying API versions, always use `microsoft_docs_search` with the resource type and `"bicep reference"` or `"REST API"` to confirm the latest stable version.
+
+### Context7 MCP (`context7`) — Less commonly needed for this agent
+
+Use Context7 only when you need to cross-check Terraform AzureRM provider arguments for Azure resource properties:
+```
+context7-resolve-library-id("azurerm", "<resource type>")
+→ get-library-docs(<id>, topic="<resource>")
+```

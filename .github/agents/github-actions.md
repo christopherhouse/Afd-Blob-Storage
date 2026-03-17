@@ -300,3 +300,43 @@ concurrency:
 - All deploy workflows must target an `environment:` – never deploy without environment protection.
 - Terraform state storage account must use Azure AD auth (`ARM_USE_OIDC: true`), not account keys.
 - Do not hard-code environment names or resource group names in workflow files – use variables/inputs.
+
+---
+
+## MCP Servers Available to This Agent
+
+### Context7 MCP (`context7`) — Primary Reference for Action Versions and Inputs
+
+**Always** use Context7 to look up the current version, input schema, and usage examples for GitHub Actions before writing workflow steps. Action APIs change between major versions and using stale input names causes silent failures.
+
+**Two-step lookup pattern:**
+```
+Step 1 — Resolve the action's library:
+  context7-resolve-library-id("azure/login", "azure login github actions OIDC")
+  → Select best match by benchmark score
+
+Step 2 — Fetch documentation:
+  get-library-docs("<libraryId>", topic="OIDC workload identity")
+```
+
+**Key actions to look up via Context7:**
+
+| Action | Context7 Query |
+|---|---|
+| `azure/login` | `"azure login OIDC federated credentials"` |
+| `actions/checkout` | `"checkout repository"` |
+| `hashicorp/setup-terraform` | `"setup terraform version"` |
+| `actions/cache` | `"cache dependencies restore"` |
+| `actions/github-script` | `"github script PR comment"` |
+| `azure/arm-deploy` | `"arm deploy bicep template"` |
+
+### Microsoft Learn MCP (`microsoft-docs`) — Use for OIDC Setup Guidance
+
+Use MS Learn MCP when you need to understand how to configure the Azure side of OIDC (federated credentials, app registration, role assignments):
+
+```
+microsoft_docs_search("github actions azure OIDC workload identity federation setup")
+microsoft_docs_search("azure ad app registration federated credential github actions")
+```
+
+Also useful when writing the workflow documentation comments that explain *why* certain permissions or environment variables are required.

@@ -51,3 +51,36 @@ This project deploys **Azure Front Door Premium with WAF** routing to a **privat
 - Do not plan work outside the scope of: Bicep, Terraform, GitHub Actions, and documentation.
 - Do not prescribe specific tool versions without checking the project's `copilot-instructions.md` first.
 - All plans must account for both IaC tracks (Bicep and Terraform) unless explicitly told otherwise.
+
+---
+
+## MCP Servers Available to This Agent
+
+### Microsoft Learn MCP (`microsoft-docs`) — Use for Service Limits and Feature Research
+
+Use MS Learn MCP to verify Azure service limits, feature availability, preview status, and required RBAC roles **before** committing them to a plan. Do not rely on training-data knowledge for these details.
+
+**Key planning queries:**
+
+| Planning Need | Query |
+|---|---|
+| AFD Private Link GA status | `"azure front door premium private link generally available"` |
+| AFD origin types supported for Private Link | `"azure front door private link supported services origins"` |
+| Required roles for AFD + storage deployment | `"azure front door RBAC roles required deployment"` |
+| Private DNS zone service limits | `"azure private dns zone limits records virtual network links"` |
+| WAF rule set latest versions | `"azure front door WAF managed rule set versions latest"` |
+| Storage account private endpoint limits | `"azure storage account private endpoint limits"` |
+
+**Fetch pattern:**
+```
+1. microsoft_docs_search("<query>")
+2. microsoft_docs_fetch(<url>) when the full quota/limit table is needed
+```
+
+### Context7 MCP (`context7`)
+
+Less commonly needed for planning tasks, but useful when estimating effort for Terraform or Bicep work — use it to quickly check whether a provider resource exists or requires workarounds:
+```
+context7-resolve-library-id("terraform-provider-azurerm", "cdn frontdoor security policy")
+→ Confirms resource name and whether manual steps are needed outside Terraform
+```

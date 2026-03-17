@@ -196,3 +196,41 @@ az deployment group what-if \
 - Use `existing` keyword to reference pre-existing resources rather than passing raw IDs.
 - Do not use `concat()` – use string interpolation instead.
 - Prefer `union()` for merging objects over manual property spreading.
+
+---
+
+## MCP Servers Available to This Agent
+
+### Microsoft Learn MCP (`microsoft-docs`) — Use for every resource you author
+
+**Always** query MS Learn before writing or reviewing a Bicep resource block to confirm the latest stable `apiVersion`, required properties, and valid enum values. Do not rely on training-data knowledge for these details.
+
+**Key queries for Bicep work:**
+
+| Task | Query |
+|---|---|
+| Find latest stable `apiVersion` for a resource | `"Microsoft.Cdn/profiles bicep resource reference"` |
+| AFD origin private link properties | `"azure front door origin sharedPrivateLinkResource bicep"` |
+| WAF policy managed rule set properties | `"Microsoft.Network FrontDoorWebApplicationFirewallPolicies bicep reference"` |
+| Storage account properties | `"Microsoft.Storage storageAccounts bicep resource reference"` |
+| Private endpoint Bicep syntax | `"Microsoft.Network privateEndpoints bicep reference"` |
+| Private DNS zone + VNet link | `"Microsoft.Network privateDnsZones virtualNetworkLinks bicep"` |
+| AVM module catalog | `"azure verified modules bicep front door storage"` |
+
+**Fetch pattern:**
+```
+1. microsoft_docs_search("Microsoft.Cdn/profiles/originGroups/origins bicep reference")
+2. microsoft_docs_fetch(<url from result>) → get full property table with types and allowed values
+```
+
+Use `microsoft_code_sample_search(query, language="bicep")` to find official MS Learn Bicep code examples for any resource type.
+
+### Context7 MCP (`context7`) — Use for AVM module patterns
+
+When implementing Azure Verified Modules (AVM) patterns, use Context7 to look up the AVM registry:
+```
+1. context7-resolve-library-id("azure verified modules bicep", "front door premium module")
+2. get-library-docs(<id>, topic="front door")
+```
+
+Also useful for Bicep CLI tool documentation if you need to look up CLI flags or linter rule details.
