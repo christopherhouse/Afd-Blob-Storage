@@ -33,7 +33,13 @@ terraform {
   #   -backend-config="container_name=<var>"
   #   -backend-config="key=dev/afd-blob-storage.tfstate"
   #   -backend-config="use_oidc=true"
+  #   -backend-config="use_azuread_auth=true"
   #   -backend-config="subscription_id=<var>"
+  #
+  # use_azuread_auth=true is required to prevent the backend from falling back
+  # to storage account key enumeration (listKeys), which would fail with 403
+  # when the identity lacks the Storage Account Contributor role. With this flag
+  # the backend uses the Entra ID token obtained via OIDC for all blob operations.
   #
   # Local development:
   #   Create src/terraform/backend.dev.tfbackend (git-ignored) with the same

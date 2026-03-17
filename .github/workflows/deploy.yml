@@ -277,11 +277,15 @@ jobs:
     # environment-scoped variables (TF_STATE_*, BICEP_RESOURCE_GROUP, etc.)
     environment: dev
 
-    # ARM_* variables are consumed by the azurerm and azapi Terraform providers.
-    # ARM_USE_OIDC=true instructs both providers to exchange the OIDC token
-    # minted by azure/login for an Azure access token — matching providers.tf.
+    # ARM_* variables are consumed by the azurerm and azapi Terraform providers
+    # as well as the azurerm backend.
+    # ARM_USE_OIDC=true         — exchange the OIDC token for an Azure access token.
+    # ARM_USE_AZUREAD_AUTH=true — use Entra ID (Azure AD) token-based auth for
+    #                             blob storage operations instead of storage account
+    #                             keys, preventing the 403 on listKeys.
     env:
       ARM_USE_OIDC: "true"
+      ARM_USE_AZUREAD_AUTH: "true"
       ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
       ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
@@ -327,7 +331,9 @@ jobs:
       # Backend config is passed via -backend-config flags so that sensitive
       # values (storage account name, RG) are sourced from environment variables
       # rather than being committed to providers.tf.
-      # use_oidc=true on the backend mirrors providers.tf — no storage keys used.
+      # use_oidc=true        — authenticate to Azure using the OIDC token.
+      # use_azuread_auth=true — use Entra ID token for blob access instead of
+      #                         storage account keys (avoids the 403 on listKeys).
       - name: Terraform init
         run: |
           terraform -chdir=src/terraform init \
@@ -336,6 +342,7 @@ jobs:
             -backend-config="container_name=${{ vars.TF_STATE_CONTAINER }}" \
             -backend-config="key=dev/afd-blob-storage.tfstate" \
             -backend-config="use_oidc=true" \
+            -backend-config="use_azuread_auth=true" \
             -backend-config="subscription_id=${{ vars.AZURE_SUBSCRIPTION_ID }}"
 
       # ── 6. Terraform plan ────────────────────────────────────────────────────
