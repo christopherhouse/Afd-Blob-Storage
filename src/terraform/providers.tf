@@ -53,6 +53,13 @@ terraform {
 # AzureRM Provider
 # use_oidc = true enables Workload Identity Federation / OIDC authentication,
 # which is required for GitHub Actions deployments without stored secrets.
+#
+# storage_use_azuread = true instructs the provider to use Azure AD (Entra ID)
+# tokens for ALL storage data-plane operations instead of falling back to
+# storage account keys. This is required when shared_access_key_enabled = false
+# on the storage account; without it the provider's internal blob-service
+# readiness poll fails with:
+#   403 Key based authentication is not permitted on this storage account.
 ###############################################################################
 provider "azurerm" {
   features {
@@ -68,6 +75,7 @@ provider "azurerm" {
   }
 
   use_oidc                        = true
+  storage_use_azuread             = true
   resource_provider_registrations = "none"
 }
 
