@@ -29,6 +29,12 @@
 #   TF_STATE_RESOURCE_GROUP    — Resource group hosting TF state storage
 #   TF_STATE_STORAGE_ACCOUNT   — Storage account name for Terraform state
 #   TF_STATE_CONTAINER         — Blob container name  (e.g. "tfstate")
+#
+# Setup instructions (Settings → Environments → dev → Environment variables):
+#   All five variables above must be configured before a deploy job can succeed.
+#   TF_RESOURCE_GROUP must name a resource group that already exists in the
+#   target subscription; Terraform looks it up as a data source and will error
+#   if the group is absent or the name is blank.
 # ──────────────────────────────────────────────────────────────────────────────
 
 name: CI / CD — Afd-Blob-Storage
@@ -351,6 +357,12 @@ jobs:
       # readable text copy (plan.txt) for the Step Summary.
       # set -o pipefail ensures a non-zero exit from terraform is not masked
       # by the tee process that follows it in the pipeline.
+      #
+      # TF_RESOURCE_GROUP is a required GitHub Environment variable
+      # (Settings → Environments → dev → Environment variables).
+      # It must be set to the name of the pre-existing resource group before
+      # this job runs; Terraform looks it up as a data source and will error
+      # if the value is blank or the group does not exist.
       - name: Terraform plan
         id: tf_plan
         run: |
