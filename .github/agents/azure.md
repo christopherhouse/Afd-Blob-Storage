@@ -19,6 +19,8 @@ You are a **senior Azure cloud architect** specializing in the **Azure Well-Arch
 - Advise on Azure-specific service configurations (Front Door Premium, WAF policies, Private Endpoints, Storage)
 - Identify security misconfigurations and recommend remediations
 - Ensure proper RBAC, Managed Identity, and network isolation patterns are followed
+- Guide the setup of App Registrations (service principals) for external clients that must authenticate to the storage account
+- Advise on secure `azcopy` usage with service principals for blob upload/sync operations
 
 ## CAF Naming Convention Reference
 
@@ -40,6 +42,7 @@ Use the following abbreviation prefixes for all Azure resources:
 | WAF Policy | `waf-` |
 | Key Vault | `kv-` |
 | Managed Identity | `id-` |
+| App Registration | `app-` *(Entra ID display name prefix)* |
 
 Full naming pattern: `{prefix}{workload}-{environment}-{region-short}[-{instance}]`
 
@@ -103,7 +106,251 @@ Example: `afd-blobstorage-prod-eus` for the Front Door profile in East US produc
 - DNS A record for the storage account must resolve to the private endpoint NIC IP.
 - Do not use custom DNS servers unless integrated with Azure Private DNS Resolver.
 
-## Constraints
+---
+
+## App Registration Setup for Storage Account Access
+
+Use an **App Registration (service principal)** when an external client system — such as a CI/CD pipeline, on-premises tool, or a developer workstation running `azcopy` — needs to authenticate to the storage account and cannot use a Managed Identity. For workloads running inside Azure, always prefer a Managed Identity instead.
+
+### When to Use an App Registration vs. Managed Identity
+
+| Scenario | Recommended Auth |
+|---|---|
+| Azure VM / App Service / Container App accessing storage | Managed Identity |
+| GitHub Actions deploying to storage | OIDC Federated Credential on App Registration |
+| Developer workstation running `azcopy` | App Registration + client secret or certificate |
+| On-premises system uploading blobs | App Registration + certificate (preferred) |
+| Automated pipeline on non-Azure infrastructure | App Registration + certificate (preferred) |
+
+### CAF Naming for App Registrations
+
+App Registration display names are not Azure resources and do not appear in Resource Manager, so they follow a simplified naming pattern:
+
+```
+app-{workload}-{environment}-{purpose}
+```
+
+Examples:
+- `app-blobstorage-prod-azcopy` – service principal used by azcopy in production
+- `app-blobstorage-dev-pipeline` – service principal used by a CI/CD pipeline in dev
+
+### Step 1 – Create the App Registration
+
+**Azure CLI:**
+```bash
+# Create the App Registration
+az ad app create \
+  --display-name "app-blobstorage-prod-azcopy" \
+  --sign-in-audience "AzureADMyOrg"
+
+# Capture the appId (client ID) and objectId
+APP_ID=$(az ad app list --display-name "app-blobstorage-prod-azcopy" --query "[0].appId" -o tsv)
+OBJECT_ID=$(az ad app list --display-name "app-blobstorage-prod-azcopy" --query "[0].id" -o tsv)
+
+# Create a service principal for the App Registration
+az ad sp create --id "$APP_ID"
+
+SP_OBJECT_ID=$(az ad sp show --id "$APP_ID" --query "id" -o tsv)
+```
+
+**Azure Portal:**
+1. Navigate to **Microsoft Entra ID → App registrations → New registration**
+2. Set the display name (e.g., `app-blobstorage-prod-azcopy`)
+3. Set **Supported account types** to *Accounts in this organizational directory only*
+4. Leave Redirect URI blank (not required for service-to-service auth)
+5. Click **Register** and note the **Application (client) ID** and **Directory (tenant) ID**
+
+### Step 2 – Add a Credential (Certificate Preferred over Secret)
+
+**Option A – Self-signed certificate (recommended for production):**
+```bash
+# Generate a self-signed certificate (valid 1 year)
+openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem \
+  -days 365 -nodes -subj "/CN=app-blobstorage-prod-azcopy"
+
+# Upload the public certificate to the App Registration
+az ad app credential reset \
+  --id "$APP_ID" \
+  --cert "@cert.pem" \
+  --append
+```
+
+**Option B – Client secret (acceptable for dev/test, avoid in production):**
+```bash
+# Create a client secret (note the value immediately — it is shown only once)
+az ad app credential reset \
+  --id "$APP_ID" \
+  --years 1 \
+  --append
+
+# Store the resulting password in Azure Key Vault, never in code or environment files
+az keyvault secret set \
+  --vault-name "kv-blobstorage-prod-eus" \
+  --name "azcopy-client-secret" \
+  --value "<secret-value>"
+```
+
+> **Security note:** Never embed client secrets in source code, IaC parameter files, or workflow YAML. Always retrieve them at runtime from Key Vault or a secrets manager.
+
+### Step 3 – Assign RBAC Role on the Storage Account
+
+Grant the service principal the minimum required role on the storage account. **Do not use storage account keys** — enforce Azure AD-only authentication.
+
+```bash
+STORAGE_ACCOUNT_ID=$(az storage account show \
+  --name "<storage-account-name>" \
+  --resource-group "<resource-group-name>" \
+  --query "id" -o tsv)
+
+# Storage Blob Data Contributor: read, write, delete blobs
+az role assignment create \
+  --assignee "$SP_OBJECT_ID" \
+  --role "Storage Blob Data Contributor" \
+  --scope "$STORAGE_ACCOUNT_ID"
+```
+
+**Role selection guidance:**
+
+| Role | Use When |
+|---|---|
+| `Storage Blob Data Reader` | Read-only access (download only) |
+| `Storage Blob Data Contributor` | Read/write/delete blobs (standard upload use case) |
+| `Storage Blob Data Owner` | Full control including ACL management (avoid unless required) |
+
+> **Important:** Assigning `Contributor` or `Owner` at the storage account level does **not** grant blob data plane access. You must use a `Storage Blob Data *` role.
+
+### Step 4 – Disable Storage Account Key Access (Enforce Azure AD Auth)
+
+To prevent azcopy or any client from falling back to key-based authentication, disable shared key access on the storage account:
+
+**Bicep:**
+```bicep
+properties: {
+  allowSharedKeyAccess: false
+  // ...other properties
+}
+```
+
+**Terraform:**
+```hcl
+shared_access_key_enabled = false
+```
+
+**Azure CLI:**
+```bash
+az storage account update \
+  --name "<storage-account-name>" \
+  --resource-group "<resource-group-name>" \
+  --allow-shared-key-access false
+```
+
+---
+
+## Using AzCopy with a Service Principal
+
+`azcopy` supports Azure AD authentication via a service principal. Because this architecture disables public network access on the storage account, **azcopy must be run from a machine that has network access to the private endpoint** (e.g., within the VNet, via VPN/ExpressRoute, or from a jump host inside the VNet).
+
+### Network Access Requirements
+
+- The machine running `azcopy` must be able to resolve `<storage-account>.blob.core.windows.net` to the **private endpoint IP** (not the public IP).
+- Verify DNS resolution before running azcopy:
+  ```bash
+  nslookup <storage-account>.blob.core.windows.net
+  # Expected: resolves to 10.x.x.x (private endpoint NIC IP)
+  # If it resolves to a public IP, DNS is not configured correctly
+  ```
+- From a public machine, azcopy will fail with a network connectivity error because `publicNetworkAccess: Disabled`.
+
+### Authentication – Environment Variable Method (Recommended for Automation)
+
+Set credentials as environment variables before running `azcopy`. This avoids interactive login and is suitable for CI/CD pipelines and scripts.
+
+**With client secret:**
+```bash
+export AZCOPY_SPA_APPLICATION_ID="<client-id>"
+export AZCOPY_SPA_CLIENT_SECRET="<client-secret>"   # retrieve from Key Vault at runtime
+export AZCOPY_TENANT_ID="<tenant-id>"
+
+azcopy login --service-principal --tenant-id "$AZCOPY_TENANT_ID"
+```
+
+**With certificate:**
+```bash
+export AZCOPY_SPA_APPLICATION_ID="<client-id>"
+export AZCOPY_SPA_CERT_PATH="/path/to/cert.pem"
+export AZCOPY_SPA_CERT_PASSWORD=""                  # omit or set if cert is password-protected
+export AZCOPY_TENANT_ID="<tenant-id>"
+
+azcopy login --service-principal --tenant-id "$AZCOPY_TENANT_ID"
+```
+
+### Authentication – Inline Login Method
+
+```bash
+# Login using client secret (prompts for secret if AZCOPY_SPA_CLIENT_SECRET not set)
+azcopy login \
+  --service-principal \
+  --application-id "<client-id>" \
+  --tenant-id "<tenant-id>"
+
+# Confirm login
+azcopy login status
+```
+
+### Upload Commands
+
+```bash
+STORAGE_ACCOUNT="<storage-account-name>"
+CONTAINER="<container-name>"
+
+# Upload a single file
+azcopy copy \
+  "/local/path/to/file.bin" \
+  "https://${STORAGE_ACCOUNT}.blob.core.windows.net/${CONTAINER}/file.bin"
+
+# Upload a directory recursively
+azcopy copy \
+  "/local/path/to/directory/" \
+  "https://${STORAGE_ACCOUNT}.blob.core.windows.net/${CONTAINER}/" \
+  --recursive
+
+# Sync a local directory to a container (mirror — deletes blobs not in source)
+azcopy sync \
+  "/local/path/to/directory/" \
+  "https://${STORAGE_ACCOUNT}.blob.core.windows.net/${CONTAINER}/" \
+  --recursive \
+  --delete-destination true
+
+# Upload with a specific blob tier (e.g., Cool for infrequently accessed data)
+azcopy copy \
+  "/local/path/to/file.bin" \
+  "https://${STORAGE_ACCOUNT}.blob.core.windows.net/${CONTAINER}/file.bin" \
+  --block-blob-tier Cool
+```
+
+### Verify Upload
+
+```bash
+# List blobs in the container after upload
+azcopy list "https://${STORAGE_ACCOUNT}.blob.core.windows.net/${CONTAINER}/"
+
+# Or use Azure CLI (requires Storage Blob Data Reader role or higher)
+az storage blob list \
+  --account-name "$STORAGE_ACCOUNT" \
+  --container-name "$CONTAINER" \
+  --auth-mode login \
+  --output table
+```
+
+### Security Checklist for AzCopy Usage
+
+- [ ] `azcopy` is run from within the VNet or a host with private endpoint connectivity
+- [ ] Client secret is retrieved from Key Vault at runtime — never hardcoded
+- [ ] `AZCOPY_SPA_CLIENT_SECRET` environment variable is cleared after use in scripts
+- [ ] `allowSharedKeyAccess: false` is set on the storage account
+- [ ] The service principal has only `Storage Blob Data Contributor` (not `Owner`)
+- [ ] Certificates are used in production instead of client secrets where possible
+- [ ] azcopy log files are reviewed for errors and do not contain secrets
 
 - Do not recommend solutions that bypass Private Link (e.g., service endpoints alone are insufficient for this architecture).
 - Always prefer **Managed Identity** over service principal credentials.
