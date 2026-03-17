@@ -1,0 +1,25 @@
+# Terraform local working files — never commit these
+.terraform/
+.terraform.lock.hcl
+
+# Terraform plan output
+*.tfplan
+tfplan
+
+# Terraform state files
+*.tfstate
+*.tfstate.backup
+*.tfstate.*.backup
+
+# Override files
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Terraform variable files with real values (use terraform.tfvars.example as template)
+# terraform.tfvars is committed intentionally with dev placeholder values (no secrets)
+
+# Crash log files
+crash.log
+crash.*.log
