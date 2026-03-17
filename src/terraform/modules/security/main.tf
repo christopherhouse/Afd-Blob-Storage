@@ -52,9 +52,12 @@ module "key_vault" {
   }
 
   # --- RBAC Authorization ---
-  # RBAC is enabled by default in this AVM (legacy_access_policies_enabled
-  # defaults to false). Data-plane access is granted via Azure role assignments,
-  # not vault access policies.
+  # Explicitly set legacy_access_policies_enabled = false to enforce Azure RBAC
+  # authorization and prevent the AVM from ever enabling legacy vault access
+  # policies. Data-plane access is granted exclusively via Azure role
+  # assignments — access policies are NOT supported. This setting is
+  # intentionally not exposed as a variable; RBAC is always on.
+  legacy_access_policies_enabled = false
 
   # --- Telemetry & Tags ---
   enable_telemetry = var.enable_telemetry

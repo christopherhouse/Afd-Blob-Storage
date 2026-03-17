@@ -228,7 +228,6 @@ jobs:
             --resource-group "${{ vars.BICEP_RESOURCE_GROUP }}" \
             --template-file src/bicep/main.bicep \
             --parameters src/bicep/parameters/main.dev.bicepparam \
-            --no-wait false \
             --output json)
 
           echo "deployment_output<<EOF" >> "$GITHUB_OUTPUT"
@@ -286,13 +285,19 @@ jobs:
 
     # ARM_* variables are consumed by the azurerm and azapi Terraform providers
     # as well as the azurerm backend.
-    # ARM_USE_OIDC=true         — exchange the OIDC token for an Azure access token.
-    # ARM_USE_AZUREAD_AUTH=true — use Entra ID (Azure AD) token-based auth for
-    #                             blob storage operations instead of storage account
-    #                             keys, preventing the 403 on listKeys.
+    # ARM_USE_OIDC=true              — exchange the OIDC token for an Azure access token.
+    # ARM_USE_AZUREAD_AUTH=true      — use Entra ID token for the azurerm backend blob
+    #                                  operations (state reads/writes) instead of storage
+    #                                  account keys, preventing 403 on listKeys.
+    # ARM_STORAGE_USE_AZUREAD=true   — use Entra ID token for ALL provider-level storage
+    #                                  data-plane calls (e.g. blob-service readiness poll
+    #                                  after azurerm_storage_account creation). Required
+    #                                  when shared_access_key_enabled = false; without it
+    #                                  the provider's internal poll fails with 403.
     env:
       ARM_USE_OIDC: "true"
       ARM_USE_AZUREAD_AUTH: "true"
+      ARM_STORAGE_USE_AZUREAD: "true"
       ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
       ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
