@@ -66,7 +66,7 @@ var commonTags = {
 // ── Module: Virtual Network ────────────────────────────────────────────────────
 
 module networking 'modules/networking/virtualNetwork.bicep' = {
-  name: 'networkingDeployment'
+  name: 'networkingDeployment-${deployment().name}'
   params: {
     location: location
     workloadName: workloadName
@@ -83,7 +83,7 @@ module networking 'modules/networking/virtualNetwork.bicep' = {
 // reference the workspace resource ID.
 
 module monitoring 'modules/monitoring/logAnalyticsWorkspace.bicep' = {
-  name: 'monitoringDeployment'
+  name: 'monitoringDeployment-${deployment().name}'
   params: {
     location: location
     workloadName: workloadName
@@ -97,7 +97,7 @@ module monitoring 'modules/monitoring/logAnalyticsWorkspace.bicep' = {
 // ── Module: Storage Account ────────────────────────────────────────────────────
 
 module storage 'modules/storage/storageAccount.bicep' = {
-  name: 'storageDeployment'
+  name: 'storageDeployment-${deployment().name}'
   params: {
     location: location
     workloadName: workloadName
@@ -111,7 +111,7 @@ module storage 'modules/storage/storageAccount.bicep' = {
 // ── Module: Key Vault ──────────────────────────────────────────────────────────
 
 module security 'modules/security/keyVault.bicep' = {
-  name: 'securityDeployment'
+  name: 'securityDeployment-${deployment().name}'
   params: {
     location: location
     workloadName: workloadName
