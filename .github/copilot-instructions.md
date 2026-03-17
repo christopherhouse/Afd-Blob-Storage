@@ -131,6 +131,58 @@ Provides up-to-date library and SDK documentation with real code snippets, sourc
 
 ---
 
+## Working with Agents
+
+This repository includes a set of **custom Copilot agents** under `.github/agents/`. Each agent is a domain specialist. Use them together in a structured workflow — starting with the Planning Agent — to deliver well-architected, consistent results.
+
+### Always Start with the Planning Agent
+
+> **Rule: Begin every new feature, module, or significant change by engaging the Planning Agent first.**
+
+The Planning Agent (`planning.md`) breaks down requirements into a phased, dependency-ordered task list before any code is written. This prevents wasted effort caused by building things in the wrong order (e.g., deploying an origin before the storage account exists, or writing Bicep before the resource model is agreed upon).
+
+```
+User request
+    │
+    ▼  (1) Always first
+Planning Agent        ← decompose, sequence, identify dependencies
+    │
+    ▼  (2) Validate design
+Azure Agent           ← WAF/CAF review, App Reg + azcopy guidance
+    │
+    ▼  (3) Implement IaC
+Bicep Agent and/or Terraform Agent
+    │
+    ▼  (4) Wire up CI/CD
+GitHub Actions Agent
+    │
+    ▼  (5) Document
+Documentation Agent
+```
+
+### Agent Roster
+
+| Agent File | Specialisation | Engage When |
+|---|---|---|
+| `planning.md` | Phased task decomposition, dependency mapping, ADRs | **Always first** — for any new work, feature, or cross-cutting change |
+| `azure.md` | WAF/CAF alignment, RBAC, App Registrations, azcopy | Reviewing Azure resource config, auth patterns, security posture |
+| `bicep.md` | Bicep module authoring, AVM patterns, linting | Writing or reviewing any file under `infra/bicep/` |
+| `terraform.md` | Terraform HCL authoring, AzureRM provider, state | Writing or reviewing any file under `infra/terraform/` |
+| `github-actions.md` | CI/CD workflows, OIDC auth, environment protection | Writing or reviewing files under `.github/workflows/` |
+| `documentation.md` | README files, Mermaid diagrams, parameter tables | Creating or updating any documentation |
+
+### Recommended Workflow
+
+1. **Planning Agent** – Describe the goal; receive a phased task list with dependencies and acceptance criteria.
+2. **Azure Agent** – Validate the proposed resource design against WAF/CAF; confirm RBAC, naming, and security settings before writing IaC.
+3. **Bicep Agent and/or Terraform Agent** – Implement the agreed design in IaC.
+4. **GitHub Actions Agent** – Add or update CI/CD workflows to lint, validate, and deploy the new IaC.
+5. **Documentation Agent** – Update README files, architecture diagrams, and parameter tables to reflect the changes.
+
+> You do not need to engage every agent for every task. For a small change (e.g., adjusting a WAF rule), skip directly to the Azure Agent and the relevant IaC agent. Use the Planning Agent any time scope or sequencing is unclear.
+
+---
+
 ## Repository Structure (Target)
 
 ```
