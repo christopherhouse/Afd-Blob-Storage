@@ -1,5 +1,5 @@
 ###############################################################################
-# Security Module – Main
+# Security Module -- Main
 #
 # Deploys an Azure Key Vault configured for enterprise security:
 #   - Azure RBAC authorization (legacy access policies disabled)

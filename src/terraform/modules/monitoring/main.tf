@@ -1,5 +1,5 @@
 ###############################################################################
-# Monitoring Module – Main
+# Monitoring Module -- Main
 #
 # Deploys an Azure Log Analytics Workspace for centralised log ingestion and
 # querying. Other modules can reference the workspace resource ID when

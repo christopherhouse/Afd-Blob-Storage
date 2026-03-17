@@ -1,5 +1,5 @@
 ###############################################################################
-# Storage Module – Main
+# Storage Module -- Main
 #
 # Deploys an Azure Storage Account configured for maximum security:
 #   - Public network access disabled

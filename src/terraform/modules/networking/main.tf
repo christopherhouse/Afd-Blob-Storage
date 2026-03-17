@@ -1,5 +1,5 @@
 ###############################################################################
-# Networking Module – Main
+# Networking Module -- Main
 #
 # Deploys an Azure Virtual Network with a single dedicated subnet for private
 # endpoints. The private-endpoint subnet has network policies disabled, which
