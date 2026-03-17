@@ -21,7 +21,7 @@ This repository contains Infrastructure-as-Code (IaC) for deploying **Azure Fron
 Both **Bicep** and **Terraform** implementations are maintained in parallel under:
 
 ```
-infra/
+src/
   bicep/       # Azure Bicep modules and main deployment files
   terraform/   # Terraform root module and child modules
 ```
@@ -41,6 +41,7 @@ GitHub Actions workflows live in `.github/workflows/` and handle linting, valida
 - Parameterize environment (`dev`, `staging`, `prod`), location, and workload name in every module/template.
 - Never hard-code subscription IDs, tenant IDs, or credentials.
 - Store sensitive outputs (keys, connection strings) in Azure Key Vault; never in state files or workflow logs.
+- **Always implement infrastructure in BOTH Bicep and Terraform in parallel. Every IaC change must be reflected in both `src/bicep/` and `src/terraform/`.**
 
 ### Bicep
 
@@ -53,7 +54,7 @@ GitHub Actions workflows live in `.github/workflows/` and handle linting, valida
 
 ### Terraform
 
-- Use **child modules** under `infra/terraform/modules/` for each logical resource group.
+- Use **child modules** under `src/terraform/modules/` for each logical resource group.
 - **Always use [Azure Verified Modules (AVM)](https://azure.github.io/Azure-Verified-Modules/) — AVM is the required default for every resource type.** Fall back to native `azurerm` resources only when no AVM exists. Use `azapi` only as an absolute last resort when neither an AVM nor an `azurerm` resource is available; in that case, add a comment explaining why.
 - All resources must include a `tags` argument populated from a local `common_tags` map.
 - Use `terraform.tfvars` for environment-specific values; never commit secrets.
@@ -166,8 +167,8 @@ Documentation Agent
 |---|---|---|
 | `planning.md` | Phased task decomposition, dependency mapping, ADRs | **Always first** — for any new work, feature, or cross-cutting change |
 | `azure.md` | WAF/CAF alignment, RBAC, App Registrations, azcopy | Reviewing Azure resource config, auth patterns, security posture |
-| `bicep.md` | Bicep module authoring, AVM patterns, linting | Writing or reviewing any file under `infra/bicep/` |
-| `terraform.md` | Terraform HCL authoring, AzureRM provider, state | Writing or reviewing any file under `infra/terraform/` |
+| `bicep.md` | Bicep module authoring, AVM patterns, linting | Writing or reviewing any file under `src/bicep/` |
+| `terraform.md` | Terraform HCL authoring, AzureRM provider, state | Writing or reviewing any file under `src/terraform/` |
 | `github-actions.md` | CI/CD workflows, OIDC auth, environment protection | Writing or reviewing files under `.github/workflows/` |
 | `documentation.md` | README files, Mermaid diagrams, parameter tables | Creating or updating any documentation |
 
@@ -191,16 +192,18 @@ Documentation Agent
 │   ├── agents/             # Copilot custom coding agents
 │   ├── workflows/          # GitHub Actions workflows
 │   └── copilot-instructions.md
-├── infra/
+├── src/
 │   ├── bicep/
 │   │   ├── modules/        # Reusable Bicep modules
+│   │   ├── parameters/     # Environment-specific parameter files
 │   │   └── main.bicep      # Entry-point deployment
 │   └── terraform/
 │       ├── modules/        # Reusable Terraform child modules
 │       ├── main.tf
 │       ├── variables.tf
 │       ├── outputs.tf
-│       └── providers.tf
+│       ├── providers.tf
+│       └── terraform.tfvars
 └── README.md
 ```
 

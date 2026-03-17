@@ -36,10 +36,6 @@ module "vnet" {
       # Required: disable network policies so private endpoint NIC IPs can be
       # assigned and traffic can flow without being blocked by NSG/UDR policies.
       private_endpoint_network_policies = "Disabled"
-
-      # Explicit opt-out of default outbound internet access (GA behaviour
-      # as of 2024-09; disabling improves security posture).
-      default_outbound_access_enabled = false
     }
   }
 
