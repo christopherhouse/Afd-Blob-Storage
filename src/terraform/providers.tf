@@ -22,16 +22,25 @@ terraform {
 
   ###############################################################################
   # Remote State Backend (Azure Blob Storage)
-  # Uncomment and populate via -backend-config or environment variables.
-  # Never commit real values to source control.
+  #
+  # The backend block is intentionally empty — all configuration is supplied at
+  # runtime via -backend-config flags (CI) or a local .tfbackend file (local dev)
+  # so that no real resource names, keys, or subscription IDs are committed.
+  #
+  # CI (GitHub Actions) passes these flags automatically:
+  #   -backend-config="resource_group_name=<var>"
+  #   -backend-config="storage_account_name=<var>"
+  #   -backend-config="container_name=<var>"
+  #   -backend-config="key=dev/afd-blob-storage.tfstate"
+  #   -backend-config="use_oidc=true"
+  #   -backend-config="subscription_id=<var>"
+  #
+  # Local development:
+  #   Create src/terraform/backend.dev.tfbackend (git-ignored) with the same
+  #   key=value pairs and run:
+  #     terraform init -backend-config=backend.dev.tfbackend
   ###############################################################################
-  # backend "azurerm" {
-  #   resource_group_name  = "<tfstate-resource-group>"
-  #   storage_account_name = "<tfstate-storage-account>"
-  #   container_name       = "tfstate"
-  #   key                  = "<environment>/afd-blob-storage.tfstate"
-  #   use_oidc             = true
-  # }
+  backend "azurerm" {}
 }
 
 ###############################################################################

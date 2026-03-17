@@ -1,0 +1,435 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Afd-Blob-Storage — CI/CD Pipeline
+#
+# Triggers:
+#   • push to main  (src/** or .github/workflows/**)
+#   • pull_request  targeting main (src/** or .github/workflows/**)
+#   • workflow_dispatch (manual, optional environment input)
+#
+# Jobs:
+#   lint-bicep       — az bicep build (lint/validate)
+#   lint-terraform   — terraform fmt + validate
+#   deploy-bicep     — az deployment group create  [main / dispatch only]
+#   deploy-terraform — terraform init + plan + apply [main / dispatch only]
+#
+# Authentication:
+#   OIDC / Workload Identity Federation via azure/login@v2.
+#   No stored client secrets — only the non-sensitive IDs stored as
+#   repository variables (vars.*).
+#
+# Required repository variables (Settings → Secrets and variables → Variables):
+#   AZURE_CLIENT_ID         — Application (client) ID of the federated identity
+#   AZURE_TENANT_ID         — Azure AD tenant ID
+#   AZURE_SUBSCRIPTION_ID   — Target Azure subscription ID
+#   AZURE_LOCATION          — Primary Azure region  (e.g. "eastus")
+#
+# Required environment variables on the "dev" environment:
+#   BICEP_RESOURCE_GROUP       — Resource group for Bicep deployments
+#   TF_STATE_RESOURCE_GROUP    — Resource group hosting TF state storage
+#   TF_STATE_STORAGE_ACCOUNT   — Storage account name for Terraform state
+#   TF_STATE_CONTAINER         — Blob container name  (e.g. "tfstate")
+# ──────────────────────────────────────────────────────────────────────────────
+
+name: CI / CD — Afd-Blob-Storage
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "src/**"
+      - ".github/workflows/**"
+
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "src/**"
+      - ".github/workflows/**"
+
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment (currently only 'dev' is supported)"
+        required: false
+        default: "dev"
+        type: choice
+        options:
+          - dev
+
+# ── Permissions ───────────────────────────────────────────────────────────────
+# id-token: write  — required to mint an OIDC token for Azure federated login
+# contents: read   — required by actions/checkout
+permissions:
+  id-token: write
+  contents: read
+
+# ── Concurrency ───────────────────────────────────────────────────────────────
+# Prevents two deployments to the same ref from running simultaneously.
+# cancel-in-progress: false ensures an in-flight deployment is never aborted
+# mid-way, which could leave infrastructure in a partially applied state.
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+# ── Shared environment defaults ───────────────────────────────────────────────
+env:
+  # hashicorp/setup-terraform uses go-version-spec (not Terraform's ~> syntax).
+  # Pin to the latest 1.x GA release; matches providers.tf constraint ">= 1.9, < 2.0".
+  TF_VERSION: "1.12.2"
+  # Terraform plugin cache — shared across init calls via actions/cache
+  TF_PLUGIN_CACHE_DIR: ~/.terraform.d/plugin-cache
+  # GitHub step outputs have a practical limit. Plans larger than this are
+  # written directly to plan.txt and rendered from the file instead.
+  MAX_PLAN_OUTPUT_CHARS: "60000"
+
+# ══════════════════════════════════════════════════════════════════════════════
+# JOB 1 — Lint & validate Bicep
+# ══════════════════════════════════════════════════════════════════════════════
+jobs:
+  lint-bicep:
+    name: "Lint — Bicep"
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Source code ──────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Bicep CLI ────────────────────────────────────────────────────────
+      # az bicep install pulls the latest GA Bicep binary and caches it under
+      # ~/.azure/bin/bicep — no separate download step needed.
+      - name: Install Bicep CLI
+        run: az bicep install
+
+      # ── 3. Lint / build ─────────────────────────────────────────────────────
+      # `az bicep build` compiles the template to ARM JSON, surfacing any
+      # linter warnings as warnings/errors. The compiled output is discarded;
+      # we only care about the exit code.
+      - name: Bicep build (lint)
+        run: az bicep build --file src/bicep/main.bicep
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # JOB 2 — Lint & validate Terraform
+  # ════════════════════════════════════════════════════════════════════════════
+  lint-terraform:
+    name: "Lint — Terraform"
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Source code ──────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Terraform binary ─────────────────────────────────────────────────
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      # ── 3. Provider plugin cache ────────────────────────────────────────────
+      # Restores ~/.terraform.d/plugin-cache between runs so `terraform init`
+      # can skip downloading providers that have already been fetched.
+      - name: Restore Terraform plugin cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.TF_PLUGIN_CACHE_DIR }}
+          # Cache key: lock file hash ensures cache is busted when provider
+          # versions change, while still being shared across branches.
+          key: terraform-plugins-${{ runner.os }}-${{ hashFiles('src/terraform/.terraform.lock.hcl') }}
+          restore-keys: |
+            terraform-plugins-${{ runner.os }}-
+
+      # Ensure the plugin cache directory exists before Terraform tries to use it
+      - name: Create plugin cache directory
+        run: mkdir -p "$TF_PLUGIN_CACHE_DIR"
+
+      # ── 4. Format check ─────────────────────────────────────────────────────
+      # Fails if any .tf file is not canonically formatted.
+      # Developers should run `terraform fmt -recursive` locally before pushing.
+      - name: Terraform format check
+        run: terraform -chdir=src/terraform fmt -check -recursive
+
+      # ── 5. Init (no backend) ────────────────────────────────────────────────
+      # -backend=false skips remote state configuration so we don't need Azure
+      # credentials during the lint phase. Providers are still downloaded and
+      # cached for the validate step.
+      - name: Terraform init (backend disabled)
+        run: terraform -chdir=src/terraform init -backend=false
+
+      # ── 6. Validate ─────────────────────────────────────────────────────────
+      # Checks configuration syntax and internal consistency without contacting
+      # any remote API.
+      - name: Terraform validate
+        run: terraform -chdir=src/terraform validate
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # JOB 3 — Deploy Bicep  [main push / workflow_dispatch only]
+  # ════════════════════════════════════════════════════════════════════════════
+  deploy-bicep:
+    name: "Deploy — Bicep (dev)"
+    runs-on: ubuntu-latest
+    needs: lint-bicep
+
+    # Skip on pull_request events — only deploy on push to main or manual trigger
+    if: github.event_name != 'pull_request'
+
+    # Links to the "dev" GitHub environment for protection rules, required
+    # reviewers, and environment-scoped variables.
+    environment: dev
+
+    steps:
+      # ── 1. Source code ──────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Bicep CLI ────────────────────────────────────────────────────────
+      - name: Install Bicep CLI
+        run: az bicep install
+
+      # ── 3. Azure login (OIDC) ───────────────────────────────────────────────
+      # Uses Workload Identity Federation — no client secret is stored anywhere.
+      # AZURE_CLIENT_ID / AZURE_TENANT_ID / AZURE_SUBSCRIPTION_ID are
+      # non-sensitive GUIDs stored as GitHub repository *variables* (vars.*),
+      # not secrets. BICEP_RESOURCE_GROUP / AZURE_LOCATION are GitHub
+      # Environment variables scoped to the "dev" environment — also non-secret,
+      # so they are stored under Settings → Environments → dev → Variables.
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # ── 4. Ensure resource group exists ─────────────────────────────────────
+      # `az group create` is idempotent — safe to run on every deployment.
+      # BICEP_RESOURCE_GROUP is a GitHub Environment variable set in the
+      # "dev" environment (Settings → Environments → dev → Variables).
+      - name: Ensure resource group exists
+        run: |
+          az group create \
+            --name "${{ vars.BICEP_RESOURCE_GROUP }}" \
+            --location "${{ vars.AZURE_LOCATION }}"
+
+      # ── 5. Deploy Bicep template ─────────────────────────────────────────────
+      # Captures JSON output so it can be surfaced in the Step Summary below.
+      - name: Deploy Bicep template
+        id: bicep_deploy
+        run: |
+          OUTPUT=$(az deployment group create \
+            --name "deploy-bicep-${{ github.run_number }}" \
+            --resource-group "${{ vars.BICEP_RESOURCE_GROUP }}" \
+            --template-file src/bicep/main.bicep \
+            --parameters src/bicep/parameters/main.dev.bicepparam \
+            --no-wait false \
+            --output json)
+
+          echo "deployment_output<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$OUTPUT" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      # ── 6. Step Summary ─────────────────────────────────────────────────────
+      - name: Write deployment summary
+        if: always()
+        run: |
+          {
+            echo "## 🏗️ Bicep Deployment Summary"
+            echo ""
+            echo "| Field | Value |"
+            echo "|-------|-------|"
+            echo "| **Workflow** | \`${{ github.workflow }}\` |"
+            echo "| **Run** | [\`#${{ github.run_number }}\`](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) |"
+            echo "| **Triggered by** | \`${{ github.actor }}\` via \`${{ github.event_name }}\` |"
+            echo "| **Commit** | \`${{ github.sha }}\` |"
+            echo "| **Resource group** | \`${{ vars.BICEP_RESOURCE_GROUP }}\` |"
+            echo "| **Deployment name** | \`deploy-bicep-${{ github.run_number }}\` |"
+            echo "| **Status** | ${{ job.status == 'success' && '✅ Succeeded' || '❌ Failed' }} |"
+            echo ""
+            echo "### Deployment Outputs"
+            echo '```json'
+            # Inline Python extracts the 'outputs' map from the ARM deployment
+            # JSON response. Kept inline (not a separate script) since this is
+            # the only place this transformation is needed for Bicep.
+            echo '${{ steps.bicep_deploy.outputs.deployment_output }}' | \
+              python3 -c "
+          import sys, json
+          try:
+              data = json.load(sys.stdin)
+              props = data.get('properties', {})
+              outputs = props.get('outputs', {})
+              print(json.dumps(outputs, indent=2))
+          except Exception as e:
+              print(f'(no structured output available: {e})')
+          "
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ════════════════════════════════════════════════════════════════════════════
+  deploy-terraform:
+    name: "Deploy — Terraform (dev)"
+    runs-on: ubuntu-latest
+    needs: lint-terraform
+
+    # Skip on pull_request events — only deploy on push to main or manual trigger
+    if: github.event_name != 'pull_request'
+
+    # Links to the "dev" GitHub environment for protection rules and
+    # environment-scoped variables (TF_STATE_*, BICEP_RESOURCE_GROUP, etc.)
+    environment: dev
+
+    # ARM_* variables are consumed by the azurerm and azapi Terraform providers.
+    # ARM_USE_OIDC=true instructs both providers to exchange the OIDC token
+    # minted by azure/login for an Azure access token — matching providers.tf.
+    env:
+      ARM_USE_OIDC: "true"
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+    steps:
+      # ── 1. Source code ──────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Terraform binary ─────────────────────────────────────────────────
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          # Wraps terraform output so plan text is available via step outputs
+          terraform_wrapper: true
+
+      # ── 3. Provider plugin cache ────────────────────────────────────────────
+      # Shares the same cache key used by lint-terraform, so a warm cache from
+      # a prior lint run can be reused here without re-downloading providers.
+      - name: Restore Terraform plugin cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.TF_PLUGIN_CACHE_DIR }}
+          key: terraform-plugins-${{ runner.os }}-${{ hashFiles('src/terraform/.terraform.lock.hcl') }}
+          restore-keys: |
+            terraform-plugins-${{ runner.os }}-
+
+      - name: Create plugin cache directory
+        run: mkdir -p "$TF_PLUGIN_CACHE_DIR"
+
+      # ── 4. Azure login (OIDC) ───────────────────────────────────────────────
+      # Must happen before `terraform init` so the OIDC token is in place for
+      # the azurerm backend to authenticate against Azure Blob Storage.
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # ── 5. Terraform init ────────────────────────────────────────────────────
+      # Backend config is passed via -backend-config flags so that sensitive
+      # values (storage account name, RG) are sourced from environment variables
+      # rather than being committed to providers.tf.
+      # use_oidc=true on the backend mirrors providers.tf — no storage keys used.
+      - name: Terraform init
+        run: |
+          terraform -chdir=src/terraform init \
+            -backend-config="resource_group_name=${{ vars.TF_STATE_RESOURCE_GROUP }}" \
+            -backend-config="storage_account_name=${{ vars.TF_STATE_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=${{ vars.TF_STATE_CONTAINER }}" \
+            -backend-config="key=dev/afd-blob-storage.tfstate" \
+            -backend-config="use_oidc=true" \
+            -backend-config="subscription_id=${{ vars.AZURE_SUBSCRIPTION_ID }}"
+
+      # ── 6. Terraform plan ────────────────────────────────────────────────────
+      # Writes a binary plan file (tfplan) consumed by apply, and a human-
+      # readable text copy (plan.txt) for the Step Summary.
+      - name: Terraform plan
+        id: tf_plan
+        run: |
+          terraform -chdir=src/terraform plan \
+            -var-file=terraform.tfvars \
+            -var="environment_name=dev" \
+            -out=tfplan \
+            -no-color \
+            2>&1 | tee src/terraform/plan.txt
+
+          # Propagate plan text to step outputs, capped at MAX_PLAN_OUTPUT_CHARS.
+          # GitHub step summaries have a practical rendering limit; anything
+          # beyond that is still available in the job logs via plan.txt.
+          PLAN_TEXT=$(cat src/terraform/plan.txt)
+          MAX_CHARS="${{ env.MAX_PLAN_OUTPUT_CHARS }}"
+          if [ ${#PLAN_TEXT} -gt "$MAX_CHARS" ]; then
+            PLAN_TEXT="${PLAN_TEXT:0:$MAX_CHARS}"$'\n...[output truncated — see job logs for full plan]'
+          fi
+          echo "plan_text<<PLAN_EOF" >> "$GITHUB_OUTPUT"
+          printf '%s' "$PLAN_TEXT"  >> "$GITHUB_OUTPUT"
+          echo ""                   >> "$GITHUB_OUTPUT"
+          echo "PLAN_EOF"           >> "$GITHUB_OUTPUT"
+
+      # ── 7. Terraform apply ───────────────────────────────────────────────────
+      # Applies the saved plan file. -auto-approve is safe here because the plan
+      # was already reviewed/approved by the environment protection gate above.
+      - name: Terraform apply
+        id: tf_apply
+        run: |
+          terraform -chdir=src/terraform apply \
+            -auto-approve \
+            tfplan \
+            2>&1 | tee src/terraform/apply.txt
+
+      # ── 8. Capture outputs ───────────────────────────────────────────────────
+      # Extract Terraform outputs as JSON for the Step Summary.
+      # Sensitive outputs (e.g. log_analytics_workspace_id) are excluded via
+      # `terraform output -json` returning a redacted placeholder.
+      - name: Capture Terraform outputs
+        id: tf_outputs
+        if: steps.tf_apply.outcome == 'success'
+        run: |
+          TF_OUT=$(terraform -chdir=src/terraform output -json 2>/dev/null || echo '{}')
+          echo "tf_outputs<<TF_EOF" >> "$GITHUB_OUTPUT"
+          echo "$TF_OUT"            >> "$GITHUB_OUTPUT"
+          echo "TF_EOF"             >> "$GITHUB_OUTPUT"
+
+      # ── 9. Step Summary ─────────────────────────────────────────────────────
+      - name: Write deployment summary
+        if: always()
+        run: |
+          {
+            echo "## 🌍 Terraform Deployment Summary"
+            echo ""
+            echo "| Field | Value |"
+            echo "|-------|-------|"
+            echo "| **Workflow** | \`${{ github.workflow }}\` |"
+            echo "| **Run** | [\`#${{ github.run_number }}\`](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) |"
+            echo "| **Triggered by** | \`${{ github.actor }}\` via \`${{ github.event_name }}\` |"
+            echo "| **Commit** | \`${{ github.sha }}\` |"
+            echo "| **Environment** | \`dev\` |"
+            echo "| **TF state key** | \`dev/afd-blob-storage.tfstate\` |"
+            echo "| **Plan status** | ${{ steps.tf_plan.outcome == 'success' && '✅ Succeeded' || '❌ Failed' }} |"
+            echo "| **Apply status** | ${{ steps.tf_apply.outcome == 'success' && '✅ Succeeded' || steps.tf_apply.outcome == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} |"
+            echo ""
+            echo "### Terraform Plan"
+            echo "<details><summary>Expand plan output</summary>"
+            echo ""
+            echo '```'
+            cat src/terraform/plan.txt 2>/dev/null || echo "(plan output not available)"
+            echo '```'
+            echo ""
+            echo "</details>"
+            echo ""
+            echo "### Terraform Outputs"
+            echo '```json'
+            # Inline Python filters the `terraform output -json` map to exclude
+            # sensitive values (e.g. log_analytics_workspace_id is marked
+            # sensitive in outputs.tf). Kept inline for a single-use case.
+            echo '${{ steps.tf_outputs.outputs.tf_outputs }}' | \
+              python3 -c "
+          import sys, json
+          try:
+              data = json.load(sys.stdin)
+              # Strip sensitive values — show only non-sensitive outputs
+              safe = {k: v['value'] for k, v in data.items() if not v.get('sensitive', False)}
+              print(json.dumps(safe, indent=2))
+          except Exception as e:
+              print(f'(no structured output available: {e})')
+          "
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

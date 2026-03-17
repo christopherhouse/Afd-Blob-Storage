@@ -1,0 +1,12 @@
+# ── Bicep build output ────────────────────────────────────────────────────────
+# az bicep build compiles .bicep to ARM JSON. The compiled output is not
+# committed — only the source .bicep files are version-controlled.
+src/bicep/**/*.json
+
+# ── OS and editor artefacts ───────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.vscode/
+.idea/

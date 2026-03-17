@@ -6,6 +6,10 @@
 *.tfplan
 tfplan
 
+# Terraform plan/apply text output (written by CI for step summaries)
+plan.txt
+apply.txt
+
 # Terraform state files
 *.tfstate
 *.tfstate.backup
@@ -19,6 +23,9 @@ override.tf.json
 
 # Terraform variable files with real values (use terraform.tfvars.example as template)
 # terraform.tfvars is committed intentionally with dev placeholder values (no secrets)
+
+# Local backend config files (contain real resource names — never commit)
+*.tfbackend
 
 # Crash log files
 crash.log
