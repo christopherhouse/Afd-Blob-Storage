@@ -45,7 +45,7 @@ GitHub Actions workflows live in `.github/workflows/` and handle linting, valida
 ### Bicep
 
 - Use **modules** for logical grouping (networking, storage, frontDoor, dns).
-- Follow [Azure Verified Modules (AVM)](https://azure.github.io/Azure-Verified-Modules/) patterns where applicable.
+- **Always use [Azure Verified Modules (AVM)](https://azure.github.io/Azure-Verified-Modules/) — AVM is the required default for every resource type.** Only author custom resource blocks when no AVM exists for the required resource type; in that case, add a comment explaining the absence of an AVM.
 - Every module must include a `metadata` block with `name`, `description`, and `owner`.
 - Use `@description()` decorators on every parameter and output.
 - Target API versions should be recent and stable (prefer GA over preview).
@@ -54,7 +54,7 @@ GitHub Actions workflows live in `.github/workflows/` and handle linting, valida
 ### Terraform
 
 - Use **child modules** under `infra/terraform/modules/` for each logical resource group.
-- Follow the [Terraform Azure Provider](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs) best practices.
+- **Always use [Azure Verified Modules (AVM)](https://azure.github.io/Azure-Verified-Modules/) — AVM is the required default for every resource type.** Fall back to native `azurerm` resources only when no AVM exists. Use `azapi` only as an absolute last resort when neither an AVM nor an `azurerm` resource is available; in that case, add a comment explaining why.
 - All resources must include a `tags` argument populated from a local `common_tags` map.
 - Use `terraform.tfvars` for environment-specific values; never commit secrets.
 - State must be stored in **Azure Blob Storage** with state locking via Azure Blob lease.
