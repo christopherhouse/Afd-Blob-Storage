@@ -31,8 +31,8 @@ module "private_endpoint" {
   network_interface_name = "nic-${var.name}"
 
   # The storage account to connect; "blob" targets the Blob service sub-resource.
-  private_connection_resource_id = var.storage_account_id
-  subresource_names              = ["blob"]
+  private_connection_resource_id  = var.storage_account_id
+  subresource_names               = ["blob"]
   private_service_connection_name = var.name
 
   # --- DNS Zone Group ---
