@@ -1,5 +1,5 @@
 metadata name = 'Storage Account Module'
-metadata description = 'Deploys a hardened Storage Account with public access disabled and shared-key access disabled. Consumes AVM avm/res/storage/storage-account:0.9.1.'
+metadata description = 'Deploys a hardened Storage Account with public access disabled, shared-key access disabled, and optional blob diagnostic settings. Consumes AVM avm/res/storage/storage-account:0.9.1.'
 metadata owner = 'platform-team'
 
 targetScope = 'resourceGroup'
@@ -39,6 +39,9 @@ param skuName string = 'Standard_LRS'
 @description('Resource tags applied to every resource in this module.')
 param tags object = {}
 
+@description('Resource ID of the Log Analytics Workspace to send blob diagnostic logs and metrics to. Leave empty to skip diagnostic settings.')
+param logAnalyticsWorkspaceId string = ''
+
 // ── Variables ─────────────────────────────────────────────────────────────────
 
 // CAF naming for storage accounts: no hyphens, lowercase, max 24 chars.
@@ -47,6 +50,29 @@ param tags object = {}
 // avoiding the BCP335 static-analysis warning produced by a conditional check.
 var rawStorageName     = toLower('st${workloadName}${environmentName}${locationShort}')
 var storageAccountName = take(rawStorageName, 24)
+
+// Build the blobServices object conditionally: include diagnosticSettings only when a
+// Log Analytics Workspace ID has been supplied. This avoids deploying an empty diagnostic
+// settings resource and keeps the module idempotent when monitoring is not yet available.
+// When logAnalyticsWorkspaceId is empty, {} is passed to AVM's optional blobServices
+// parameter, which is equivalent to omitting it (AVM default = no diagnostics configured).
+var blobServicesConfig = empty(logAnalyticsWorkspaceId) ? {} : {
+  diagnosticSettings: [
+    {
+      // Explicit name prevents ARM from generating a random GUID for the setting resource.
+      name: 'blob-diagnostics'
+      workspaceResourceId: logAnalyticsWorkspaceId
+      logCategoriesAndGroups: [
+        { category: 'StorageRead' }
+        { category: 'StorageWrite' }
+        { category: 'StorageDelete' }
+      ]
+      metricCategories: [
+        { category: 'Transaction' }
+      ]
+    }
+  ]
+}
 
 // ── AVM: Storage Account ───────────────────────────────────────────────────────
 // AVM module: br/public:avm/res/storage/storage-account:0.9.1
@@ -80,6 +106,10 @@ module storageAccount 'br/public:avm/res/storage/storage-account:0.9.1' = {
 
     // Security: HTTPS-only transport.
     supportsHttpsTrafficOnly: true
+
+    // Diagnostics: conditionally enable blob-service diagnostic settings when a
+    // Log Analytics Workspace ID is provided; empty object means no diagnostics.
+    blobServices: blobServicesConfig
 
     tags: tags
   }

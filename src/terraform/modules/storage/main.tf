@@ -57,3 +57,37 @@ module "storage_account" {
   enable_telemetry = var.enable_telemetry
   tags             = var.tags
 }
+
+###############################################################################
+# Blob Diagnostic Setting (optional)
+#
+# Routes StorageRead / StorageWrite / StorageDelete logs and the Transaction
+# metric from the blob service to a Log Analytics Workspace.
+# Only created when var.log_analytics_workspace_id is non-empty, so callers
+# that have not yet provisioned a workspace can skip diagnostics safely.
+###############################################################################
+
+resource "azurerm_monitor_diagnostic_setting" "blob" {
+  count = var.log_analytics_workspace_id != "" ? 1 : 0
+
+  name               = "diag-blob-${var.name}"
+  target_resource_id = "${module.storage_account.resource_id}/blobServices/default"
+
+  log_analytics_workspace_id = var.log_analytics_workspace_id
+
+  enabled_log {
+    category = "StorageRead"
+  }
+
+  enabled_log {
+    category = "StorageWrite"
+  }
+
+  enabled_log {
+    category = "StorageDelete"
+  }
+
+  enabled_metric {
+    category = "Transaction"
+  }
+}

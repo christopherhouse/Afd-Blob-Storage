@@ -104,6 +104,7 @@ module storage 'modules/storage/storageAccount.bicep' = {
     environmentName: environmentName
     locationShort: locationShort
     skuName: storageSkuName
+    logAnalyticsWorkspaceId: monitoring.outputs.workspaceId
     tags: commonTags
   }
 }
@@ -118,6 +119,39 @@ module security 'modules/security/keyVault.bicep' = {
     environmentName: environmentName
     locationShort: locationShort
     softDeleteRetentionInDays: kvSoftDeleteRetentionInDays
+    tags: commonTags
+  }
+}
+
+// ── Module: Private DNS Zone ───────────────────────────────────────────────────
+// Deploys the privatelink.blob.core.windows.net zone and links it to the VNet so
+// that storage account FQDNs resolve to the private endpoint IP within the VNet.
+
+module privateDns 'modules/networking/privateDnsZone.bicep' = {
+  name: 'privateDnsDeployment-${deployment().name}'
+  params: {
+    workloadName: workloadName
+    environmentName: environmentName
+    locationShort: locationShort
+    vnetId: networking.outputs.vnetId
+    tags: commonTags
+  }
+}
+
+// ── Module: Private Endpoint ───────────────────────────────────────────────────
+// Places the storage account blob service private endpoint in the dedicated subnet
+// and attaches the DNS Zone Group to auto-register the A record in the private DNS zone.
+
+module privateEndpoint 'modules/networking/privateEndpoint.bicep' = {
+  name: 'privateEndpointDeployment-${deployment().name}'
+  params: {
+    location: location
+    workloadName: workloadName
+    environmentName: environmentName
+    locationShort: locationShort
+    subnetId: networking.outputs.privateEndpointSubnetId
+    storageAccountId: storage.outputs.storageAccountId
+    privateDnsZoneId: privateDns.outputs.privateDnsZoneId
     tags: commonTags
   }
 }
@@ -163,3 +197,16 @@ output keyVaultName string = security.outputs.keyVaultName
 
 @description('URI of the Key Vault.')
 output keyVaultUri string = security.outputs.keyVaultUri
+
+// Private DNS & Private Endpoint
+@description('Resource ID of the Private DNS Zone (privatelink.blob.core.windows.net).')
+output privateDnsZoneId string = privateDns.outputs.privateDnsZoneId
+
+@description('Name of the Private DNS Zone.')
+output privateDnsZoneName string = privateDns.outputs.privateDnsZoneName
+
+@description('Resource ID of the Storage Account Private Endpoint.')
+output privateEndpointId string = privateEndpoint.outputs.privateEndpointId
+
+@description('Name of the Storage Account Private Endpoint.')
+output privateEndpointName string = privateEndpoint.outputs.privateEndpointName

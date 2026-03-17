@@ -87,6 +87,8 @@ locals {
     storage_account         = local.storage_account_name
     log_analytics_workspace = "law-${local.resource_prefix}"
     key_vault               = local.key_vault_name
+    private_dns_zone        = "privatelink.blob.core.windows.net"
+    private_endpoint        = "pe-${local.resource_prefix}-blob"
   }
 
   # Tags applied to every resource.
@@ -152,12 +154,13 @@ module "monitoring" {
 module "storage" {
   source = "./modules/storage"
 
-  resource_group_name      = data.azurerm_resource_group.this.name
-  location                 = data.azurerm_resource_group.this.location
-  name                     = local.names.storage_account
-  account_replication_type = var.storage_account_replication_type
-  tags                     = local.common_tags
-  enable_telemetry         = var.enable_telemetry
+  resource_group_name        = data.azurerm_resource_group.this.name
+  location                   = data.azurerm_resource_group.this.location
+  name                       = local.names.storage_account
+  account_replication_type   = var.storage_account_replication_type
+  tags                       = local.common_tags
+  enable_telemetry           = var.enable_telemetry
+  log_analytics_workspace_id = module.monitoring.workspace_resource_id
 }
 
 ###############################################################################
@@ -176,4 +179,40 @@ module "security" {
   soft_delete_retention_days = var.kv_soft_delete_retention_days
   tags                       = local.common_tags
   enable_telemetry           = var.enable_telemetry
+}
+
+###############################################################################
+# Private DNS Module
+# Deploys a Private DNS Zone for blob storage and links it to the workload VNet
+# so that private endpoint DNS queries resolve correctly inside the network.
+###############################################################################
+
+module "private_dns" {
+  source = "./modules/private_dns"
+
+  resource_group_name = data.azurerm_resource_group.this.name
+  location            = data.azurerm_resource_group.this.location
+  vnet_id             = module.networking.vnet_id
+  workload_name       = var.workload_name
+  environment_name    = var.environment_name
+  tags                = local.common_tags
+}
+
+###############################################################################
+# Private Endpoint Module
+# Deploys a Private Endpoint that connects the storage account's blob service
+# to the private-endpoint subnet and registers its IP in the Private DNS Zone.
+###############################################################################
+
+module "private_endpoint" {
+  source = "./modules/private_endpoint"
+
+  resource_group_name = data.azurerm_resource_group.this.name
+  location            = data.azurerm_resource_group.this.location
+  name                = local.names.private_endpoint
+  subnet_resource_id  = module.networking.private_endpoint_subnet_id
+  storage_account_id  = module.storage.storage_account_id
+  private_dns_zone_id = module.private_dns.private_dns_zone_id
+  tags                = local.common_tags
+  enable_telemetry    = var.enable_telemetry
 }
