@@ -14,7 +14,9 @@ using '../main.bicep'
 // ── Identity ──────────────────────────────────────────────────────────────────
 
 @description('Short workload identifier (no hyphens, 2–10 chars).')
-param workloadName = 'afdblob'
+// Suffix "bic" differentiates Bicep-deployed resources from the Terraform
+// deployment (afdblobtf) so both can coexist in the same subscription.
+param workloadName = 'afdblobbic'
 
 @description('Deployment environment.')
 param environmentName = 'dev'
