@@ -6,6 +6,7 @@
 #   - monitoring  : Log Analytics Workspace
 #   - storage     : Storage Account (fully private)
 #   - security    : Key Vault (RBAC-enabled, purge-protected)
+#   - front_door  : Azure Front Door Premium profile + WAF policy
 #
 # Resource names follow CAF conventions and are computed in locals below.
 ###############################################################################
@@ -89,6 +90,14 @@ locals {
     key_vault               = local.key_vault_name
     private_dns_zone        = "privatelink.blob.core.windows.net"
     private_endpoint        = "pe-${local.resource_prefix}-blob"
+
+    # Azure Front Door + WAF names (CAF-compliant).
+    afd_profile      = "afd-${local.resource_prefix}"
+    afd_endpoint     = "afdep-${local.resource_prefix}"
+    afd_origin_group = "og-${local.resource_prefix}"
+    afd_origin       = "origin-${local.resource_prefix}"
+    # WAF policy names cannot contain hyphens (Azure restriction); strip them.
+    waf_policy = lower(replace("waf${var.workload_name}${var.environment_name}", "-", ""))
   }
 
   # Tags applied to every resource.
@@ -215,4 +224,37 @@ module "private_endpoint" {
   private_dns_zone_id = module.private_dns.private_dns_zone_id
   tags                = local.common_tags
   enable_telemetry    = var.enable_telemetry
+}
+
+###############################################################################
+# Front Door Module
+# Deploys Azure Front Door Premium with WAF integration:
+#   - AFD Premium profile + globally unique endpoint
+#   - Origin Group with HTTPS health probes and load-balancing configuration
+#   - Origin pointing to the storage blob service via Private Link
+#     (requires manual approval in the Azure Portal after deployment)
+#   - Route forwarding HTTPS traffic from the endpoint to the origin group
+#   - WAF Firewall Policy (var.afd_waf_mode) with DRS 2.1 + Bot Manager 1.0
+#   - Security Policy associating the WAF policy with the AFD endpoint
+###############################################################################
+
+module "front_door" {
+  source = "./modules/front_door"
+
+  resource_group_name  = data.azurerm_resource_group.this.name
+  location             = data.azurerm_resource_group.this.location
+  afd_profile_name     = local.names.afd_profile
+  endpoint_name        = local.names.afd_endpoint
+  origin_group_name    = local.names.afd_origin_group
+  origin_name          = local.names.afd_origin
+  waf_policy_name      = local.names.waf_policy
+  storage_account_name = module.storage.storage_account_name
+  storage_account_id   = module.storage.storage_account_id
+  waf_mode             = var.afd_waf_mode
+  tags                 = local.common_tags
+  enable_telemetry     = var.enable_telemetry
+
+  # Ensure the storage account is fully configured before AFD attempts to
+  # establish the Private Link connection.
+  depends_on = [module.storage]
 }

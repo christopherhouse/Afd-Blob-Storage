@@ -2,7 +2,7 @@
 
 This repository contains Infrastructure-as-Code (IaC) — in both **Azure Bicep** and **Terraform** — for deploying Azure Front Door Premium with WAF that routes to an Azure Blob Storage account exposed exclusively via a Private Endpoint.
 
-> **Status:** 🚧 In development — foundational infrastructure implemented; AFD and WAF integration in progress.
+> **Status:** ✅ Fully implemented — foundational infrastructure, AFD Premium, and WAF integration deployed via both Bicep and Terraform.
 
 ## Architecture Overview
 
@@ -15,18 +15,18 @@ Internet ──► Azure Front Door Premium (WAF) ──► [Private Link] ─�
 
 ### Deployed Resources
 
-| Resource | Purpose |
-|---|---|
-| Azure Front Door Premium | Global load balancer, TLS termination, caching |
-| WAF Policy (Prevention Mode) | OWASP + Bot Manager managed rule sets |
-| Custom Domain + Route | Routes requests to the blob origin |
-| Origin Group + Origin | Points AFD to storage via Private Link |
-| Storage Account | Blob storage, public network access disabled |
-| Private Endpoint | Connects storage into the VNet |
-| Virtual Network + Subnet | Hosts the private endpoint NIC |
-| Private DNS Zone | Resolves storage FQDN to private IP |
-| Log Analytics Workspace | Centralised diagnostic logs and metrics |
-| Key Vault | Stores secrets and certificates; no public network access |
+| Resource | Bicep Module | Terraform Module | Purpose |
+|---|---|---|---|
+| Azure Front Door Premium | `modules/frontDoor/frontDoor.bicep` | `modules/front_door/` | Global load balancer, TLS termination, caching |
+| WAF Policy (Prevention Mode) | `modules/frontDoor/wafPolicy.bicep` | `modules/front_door/` | OWASP + Bot Manager managed rule sets |
+| Custom Domain + Route | `modules/frontDoor/frontDoor.bicep` | `modules/front_door/` | Routes requests to the blob origin |
+| Origin Group + Origin | `modules/frontDoor/frontDoor.bicep` | `modules/front_door/` | Points AFD to storage via Private Link |
+| Storage Account | `modules/storage/storageAccount.bicep` | `modules/storage/` | Blob storage, public network access disabled |
+| Private Endpoint | `modules/networking/virtualNetwork.bicep` | `modules/private_endpoint/` | Connects storage into the VNet |
+| Virtual Network + Subnet | `modules/networking/virtualNetwork.bicep` | `modules/networking/` | Hosts the private endpoint NIC |
+| Private DNS Zone | `modules/networking/virtualNetwork.bicep` | `modules/private_dns/` | Resolves storage FQDN to private IP |
+| Log Analytics Workspace | `modules/monitoring/logAnalyticsWorkspace.bicep` | `modules/monitoring/` | Centralised diagnostic logs and metrics |
+| Key Vault | `modules/security/keyVault.bicep` | `modules/security/` | Stores secrets and certificates; no public network access |
 
 ## Foundational Infrastructure
 
@@ -34,12 +34,51 @@ The following foundational resources are implemented in both `src/bicep/` and `s
 
 | Resource | Module Path (Bicep) | Module Path (Terraform) | Key Security Settings |
 |---|---|---|---|
+| Azure Front Door Premium | `modules/frontDoor/frontDoor.bicep` | `modules/front_door/` | Premium SKU, Private Link origin to blob storage |
+| WAF Policy | `modules/frontDoor/wafPolicy.bicep` | `modules/front_door/` | Prevention mode; OWASP DRS 2.1 + Bot Manager 1.0 |
 | Virtual Network + PE Subnet | `modules/networking/virtualNetwork.bicep` | `modules/networking/` | Private endpoint network policies disabled on PE subnet |
 | Storage Account | `modules/storage/storageAccount.bicep` | `modules/storage/` | `publicNetworkAccess: Disabled`, `allowBlobPublicAccess: false`, TLS 1.2 minimum |
 | Log Analytics Workspace | `modules/monitoring/logAnalyticsWorkspace.bicep` | `modules/monitoring/` | 30-day retention; receives diagnostic logs from all resources |
 | Key Vault | `modules/security/keyVault.bicep` | `modules/security/` | RBAC authorisation mode; public network access disabled; soft-delete and purge protection enabled |
 
 All modules use **Azure Verified Modules (AVM)** as the implementation foundation. Environment-specific values are supplied via `src/bicep/parameters/main.dev.bicepparam` (Bicep) and `src/terraform/terraform.tfvars` (Terraform).
+
+---
+
+## Post-Deployment: Approve the AFD Private Link Connection
+
+After deploying (via either Bicep or Terraform), the Private Link connection from Azure Front Door to the storage account starts in a **Pending** state. **Traffic will not flow through AFD to storage until this connection is explicitly approved.**
+
+### Why approval is required
+
+Azure Front Door initiates a Private Link connection to the storage account's private endpoint. Because this connection crosses trust boundaries, Azure requires a storage account owner to manually approve it before traffic can flow.
+
+### Approve via Azure Portal
+
+1. Navigate to your **Storage Account** in the Azure Portal.
+2. Select **Networking** → **Private endpoint connections**.
+3. Find the connection with a description referencing **Azure Front Door** (the status will show **Pending**).
+4. Select the connection and click **Approve**.
+5. Confirm the approval in the dialog.
+
+### Approve via Azure CLI
+
+```bash
+# Get the pending private endpoint connection name
+az storage account show \
+  --name <storage-account-name> \
+  --resource-group <resource-group-name> \
+  --query "privateEndpointConnections[?privateLinkServiceConnectionState.status=='Pending'].name" \
+  -o tsv
+
+# Approve the connection (substitute the name returned above)
+az storage account private-endpoint-connection approve \
+  --account-name <storage-account-name> \
+  --resource-group <resource-group-name> \
+  --name <connection-name>
+```
+
+> **Note:** DNS propagation and AFD origin health checks may take a few minutes to complete after approval. Monitor the AFD origin health in the Azure Portal under **Azure Front Door → Origin groups** to confirm the origin transitions to a **Healthy** state.
 
 ---
 
@@ -55,11 +94,12 @@ All modules use **Azure Verified Modules (AVM)** as the implementation foundatio
 │   │   ├── github-actions.md    # GitHub Actions CI/CD agent
 │   │   ├── planning.md          # Planning agent
 │   │   └── terraform.md         # Terraform IaC agent
-│   ├── workflows/               # GitHub Actions CI/CD workflows (coming soon)
+│   ├── workflows/               # GitHub Actions CI/CD workflows
 │   └── copilot-instructions.md  # Project-wide Copilot instructions
 ├── src/
 │   ├── bicep/                   # Bicep modules + main deployment
 │   │   ├── modules/
+│   │   │   ├── frontDoor/       # AFD Premium profile + WAF policy (AVM)
 │   │   │   ├── monitoring/      # Log Analytics Workspace (AVM)
 │   │   │   ├── networking/      # VNet + PE subnet (AVM)
 │   │   │   ├── security/        # Key Vault (AVM)
@@ -69,8 +109,11 @@ All modules use **Azure Verified Modules (AVM)** as the implementation foundatio
 │   │   └── main.bicep
 │   └── terraform/               # Terraform root module + child modules
 │       ├── modules/
+│       │   ├── front_door/      # AFD Premium profile + WAF policy (AVM)
 │       │   ├── monitoring/      # Log Analytics Workspace (AVM)
 │       │   ├── networking/      # VNet + PE subnet (AVM)
+│       │   ├── private_dns/     # Private DNS zone + VNet link (AVM)
+│       │   ├── private_endpoint/ # Private endpoint + NIC (AVM)
 │       │   ├── security/        # Key Vault (AVM)
 │       │   └── storage/         # Storage account (AVM)
 │       ├── main.tf

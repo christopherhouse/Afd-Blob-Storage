@@ -111,3 +111,22 @@ output "private_endpoint_name" {
   description = "Name of the blob storage private endpoint."
   value       = module.private_endpoint.private_endpoint_name
 }
+
+# ---------------------------------------------------------------------------
+# Azure Front Door
+# ---------------------------------------------------------------------------
+
+output "afd_profile_id" {
+  description = "Azure resource ID of the Azure Front Door Premium profile."
+  value       = module.front_door.afd_profile_id
+}
+
+output "afd_profile_name" {
+  description = "Name of the Azure Front Door Premium profile."
+  value       = module.front_door.afd_profile_name
+}
+
+output "afd_endpoint_hostname" {
+  description = "The .azurefd.net hostname of the Front Door endpoint. Use this as the public-facing URL for content served from the private storage account."
+  value       = module.front_door.afd_endpoint_hostname
+}
