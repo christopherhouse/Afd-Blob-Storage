@@ -37,3 +37,7 @@ param logRetentionInDays = 30
 // ── Security ──────────────────────────────────────────────────────────────────
 
 param kvSoftDeleteRetentionInDays = 7
+
+// ── Front Door & WAF ──────────────────────────────────────────────────────────
+
+param afdWafMode = 'Prevention'
