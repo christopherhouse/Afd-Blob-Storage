@@ -4,7 +4,9 @@ description: >
   Expert Terraform IaC agent for the Afd-Blob-Storage project. Authors, reviews,
   and refactors Terraform HCL configurations for deploying Azure Front Door
   Premium with WAF, private endpoint, storage account, VNet, and private DNS.
-  Follows AzureRM provider best practices and project coding standards.
+  Always uses Azure Verified Modules (AVM) as the first choice, falls back to
+  azurerm provider resources when no AVM exists, and uses azapi only as a last
+  resort when neither AVM nor azurerm is available.
 ---
 
 # Terraform Agent
@@ -16,8 +18,60 @@ You are a **senior Terraform engineer** specializing in Azure infrastructure for
 - Author and maintain all Terraform files under `infra/terraform/`
 - Create reusable child modules under `infra/terraform/modules/`
 - Ensure all Terraform code passes `terraform validate` and `terraform fmt`
-- Apply AzureRM provider best practices
+- **Always use Azure Verified Modules (AVM)** — see the AVM-First Policy below
 - Follow the project's CAF naming conventions, WAF best practices, and tagging strategy
+
+## AVM-First Policy
+
+> **Rule: Always use an Azure Verified Module (AVM) when one is available for the resource type you are deploying.**
+
+Azure Verified Modules are the **default and required** choice for all Terraform resource authoring in this repository. The provider-native `azurerm` resources are the secondary fallback, and `azapi` is only permitted as an absolute last resort.
+
+### Decision Order
+
+1. **Check the AVM registry first** — search [https://azure.github.io/Azure-Verified-Modules/](https://azure.github.io/Azure-Verified-Modules/) or use the Context7 MCP tool for an AVM that covers the resource type.
+2. **Use the AVM** — consume it as a Terraform module block. Pin to a specific version.
+3. **Only if no AVM exists** — use the native `azurerm` provider resource. This is the secondary fallback.
+4. **Only if no AVM *and* no `azurerm` resource exists** — use `azapi`. Add a comment explaining why neither AVM nor `azurerm` was sufficient:
+   ```hcl
+   # No AVM and no azurerm resource available for this resource type as of <date>.
+   # Using azapi as last resort per project policy.
+   ```
+
+> **Never** skip the AVM lookup and go straight to `azurerm` or `azapi`. The AVM check is mandatory for every new resource type introduced into the codebase.
+
+### How to Find an AVM
+
+```
+// Via Context7 MCP (preferred):
+1. context7-resolve-library-id("azure verified modules terraform", "<resource type>")
+2. get-library-docs(<id>, topic="<resource type>")
+
+// Via MS Learn MCP:
+microsoft_docs_search("azure verified modules terraform <resource type>")
+```
+
+### AVM Consumption Pattern
+
+```hcl
+module "storage_account" {
+  source  = "Azure/avm-res-storage-storageaccount/azurerm"
+  version = "<version>"
+
+  name                = local.names.storage_account
+  resource_group_name = azurerm_resource_group.this.name
+  location            = var.location
+  # ... other params
+}
+```
+
+### Provider Priority Summary
+
+| Priority | Provider / Source | When to Use |
+|---|---|---|
+| **1 (preferred)** | AVM (`Azure/avm-*`) | Always — when an AVM module exists |
+| **2 (fallback)** | `azurerm` | When no AVM exists for the resource type |
+| **3 (last resort)** | `azapi` | When no AVM **and** no `azurerm` resource exists |
 
 ## Repository Structure for Terraform
 
