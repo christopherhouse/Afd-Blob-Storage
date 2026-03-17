@@ -2,7 +2,7 @@
 
 This repository contains Infrastructure-as-Code (IaC) — in both **Azure Bicep** and **Terraform** — for deploying Azure Front Door Premium with WAF that routes to an Azure Blob Storage account exposed exclusively via a Private Endpoint.
 
-> **Status:** 🚧 In development — repository scaffolding complete; IaC implementation in progress.
+> **Status:** 🚧 In development — foundational infrastructure implemented; AFD and WAF integration in progress.
 
 ## Architecture Overview
 
@@ -25,6 +25,23 @@ Internet ──► Azure Front Door Premium (WAF) ──► [Private Link] ─�
 | Private Endpoint | Connects storage into the VNet |
 | Virtual Network + Subnet | Hosts the private endpoint NIC |
 | Private DNS Zone | Resolves storage FQDN to private IP |
+| Log Analytics Workspace | Centralised diagnostic logs and metrics |
+| Key Vault | Stores secrets and certificates; no public network access |
+
+## Foundational Infrastructure
+
+The following foundational resources are implemented in both `src/bicep/` and `src/terraform/`:
+
+| Resource | Module Path (Bicep) | Module Path (Terraform) | Key Security Settings |
+|---|---|---|---|
+| Virtual Network + PE Subnet | `modules/networking/virtualNetwork.bicep` | `modules/networking/` | Private endpoint network policies disabled on PE subnet |
+| Storage Account | `modules/storage/storageAccount.bicep` | `modules/storage/` | `publicNetworkAccess: Disabled`, `allowBlobPublicAccess: false`, TLS 1.2 minimum |
+| Log Analytics Workspace | `modules/monitoring/logAnalyticsWorkspace.bicep` | `modules/monitoring/` | 30-day retention; receives diagnostic logs from all resources |
+| Key Vault | `modules/security/keyVault.bicep` | `modules/security/` | RBAC authorisation mode; public network access disabled; soft-delete and purge protection enabled |
+
+All modules use **Azure Verified Modules (AVM)** as the implementation foundation. Environment-specific values are supplied via `src/bicep/parameters/main.dev.bicepparam` (Bicep) and `src/terraform/terraform.tfvars` (Terraform).
+
+---
 
 ## Repository Structure
 
@@ -40,9 +57,27 @@ Internet ──► Azure Front Door Premium (WAF) ──► [Private Link] ─�
 │   │   └── terraform.md         # Terraform IaC agent
 │   ├── workflows/               # GitHub Actions CI/CD workflows (coming soon)
 │   └── copilot-instructions.md  # Project-wide Copilot instructions
-├── infra/
-│   ├── bicep/                   # Bicep modules + main deployment (coming soon)
-│   └── terraform/               # Terraform root + child modules (coming soon)
+├── src/
+│   ├── bicep/                   # Bicep modules + main deployment
+│   │   ├── modules/
+│   │   │   ├── monitoring/      # Log Analytics Workspace (AVM)
+│   │   │   ├── networking/      # VNet + PE subnet (AVM)
+│   │   │   ├── security/        # Key Vault (AVM)
+│   │   │   └── storage/         # Storage account (AVM)
+│   │   ├── parameters/
+│   │   │   └── main.dev.bicepparam
+│   │   └── main.bicep
+│   └── terraform/               # Terraform root module + child modules
+│       ├── modules/
+│       │   ├── monitoring/      # Log Analytics Workspace (AVM)
+│       │   ├── networking/      # VNet + PE subnet (AVM)
+│       │   ├── security/        # Key Vault (AVM)
+│       │   └── storage/         # Storage account (AVM)
+│       ├── main.tf
+│       ├── variables.tf
+│       ├── outputs.tf
+│       ├── providers.tf
+│       └── terraform.tfvars
 └── README.md
 ```
 
