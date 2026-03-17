@@ -53,5 +53,5 @@ variable "tags" {
 variable "enable_telemetry" {
   type        = bool
   description = "Enable Microsoft telemetry for the Azure Verified Module."
-  default     = true
+  default     = false
 }

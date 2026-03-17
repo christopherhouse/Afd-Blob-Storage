@@ -64,5 +64,11 @@ variable "tags" {
 variable "enable_telemetry" {
   type        = bool
   description = "Enable Microsoft telemetry for the Azure Verified Module."
-  default     = true
+  default     = false
+}
+
+variable "log_analytics_workspace_id" {
+  type        = string
+  description = "Resource ID of the Log Analytics Workspace for blob diagnostic settings. Leave empty to skip diagnostics."
+  default     = ""
 }

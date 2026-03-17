@@ -83,3 +83,31 @@ output "key_vault_uri" {
   description = "URI of the Key Vault (e.g. https://<name>.vault.azure.net/)."
   value       = module.security.key_vault_uri
 }
+
+# ---------------------------------------------------------------------------
+# Private DNS Zone
+# ---------------------------------------------------------------------------
+
+output "private_dns_zone_id" {
+  description = "Azure resource ID of the Private DNS Zone (privatelink.blob.core.windows.net)."
+  value       = module.private_dns.private_dns_zone_id
+}
+
+output "private_dns_zone_name" {
+  description = "Name of the Private DNS Zone (privatelink.blob.core.windows.net)."
+  value       = module.private_dns.private_dns_zone_name
+}
+
+# ---------------------------------------------------------------------------
+# Private Endpoint
+# ---------------------------------------------------------------------------
+
+output "private_endpoint_id" {
+  description = "Azure resource ID of the blob storage private endpoint."
+  value       = module.private_endpoint.private_endpoint_id
+}
+
+output "private_endpoint_name" {
+  description = "Name of the blob storage private endpoint."
+  value       = module.private_endpoint.private_endpoint_name
+}

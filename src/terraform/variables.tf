@@ -143,5 +143,5 @@ variable "owner_tag" {
 variable "enable_telemetry" {
   type        = bool
   description = "Enable Microsoft telemetry for Azure Verified Modules. Set to false in air-gapped or regulated environments."
-  default     = true
+  default     = false
 }
