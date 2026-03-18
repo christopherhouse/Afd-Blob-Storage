@@ -90,23 +90,6 @@ module afdProfile 'br/public:avm/res/cdn/profile:0.8.0' = {
     // AFD profiles are always a global resource regardless of workload region.
     location: 'global'
 
-    // ── Custom Domains ──────────────────────────────────────────────────────────
-    // When a custom domain hostname is provided, register it on the AFD profile
-    // with a Microsoft-managed TLS certificate (auto-renewed, no Key Vault needed).
-    // The DNS validation CNAME must be created by the domain owner before the
-    // certificate can be issued — see the customDomainValidationToken output.
-    // AVM cdn/profile:0.8.0 expects certificateType and minimumTlsVersion as
-    // flat top-level properties on each custom domain object (not nested under
-    // tlsSettings).
-    customDomains: hasCustomDomain ? [
-      {
-        name: customDomainResourceName
-        hostName: customDomainHostName
-        certificateType: 'ManagedCertificate'
-        minimumTlsVersion: 'TLS12'
-      }
-    ] : []
-
     // ── AFD Endpoint ────────────────────────────────────────────────────────────
     // One endpoint exposes the auto-generated *.azurefd.net hostname to clients.
     // TenantReuse preserves the auto-generated hostname label across redeployments
@@ -135,9 +118,7 @@ module afdProfile 'br/public:avm/res/cdn/profile:0.8.0' = {
               'Http'
               'Https'
             ]
-            // Associate the custom domain with this route so AFD serves traffic
-            // arriving on the custom hostname via the same origin group.
-            customDomainNames: hasCustomDomain ? [customDomainResourceName] : []
+            customDomainNames: []
           }
         ]
       }
@@ -226,13 +207,71 @@ resource afdProfileRef 'Microsoft.Cdn/profiles@2025-04-15' existing = {
     name: afdEndpointName
   }
 
-  // Read the validation token for the custom domain so callers can create the
-  // required DNS ownership-verification CNAME record before certificate issuance.
-  // The resource name falls back to a no-op placeholder when no custom domain is
-  // configured; the hasCustomDomain guard in the output prevents this reference
-  // from being resolved at deployment time in that case.
-  resource customDomainRef 'customDomains@2025-04-15' existing = {
-    name: hasCustomDomain ? customDomainResourceName : 'no-custom-domain'
+  resource originGroupRef 'originGroups@2025-04-15' existing = {
+    name: originGroupName
+  }
+}
+
+// ── Custom Domain ──────────────────────────────────────────────────────────────
+// Deployed as a separate resource (not inside the AVM module call) so that ARM
+// guarantees the AFD profile exists before the custom domain is created, and so
+// that the route update (below) can explicitly depend on the domain being fully
+// provisioned. Passing customDomains inside the same AVM module call that also
+// creates afdEndpoints/routes can trigger a ResourceNotFound error because ARM
+// does not guarantee sub-deployment ordering within a single nested deployment.
+// tlsSettings.certificateType and minimumTlsVersion are nested under tlsSettings
+// as required by the Microsoft.Cdn/profiles/customDomains ARM resource schema.
+//
+// NOTE: The explicit dependsOn: [afdProfile] below is intentional and NOT
+// redundant. `afdProfileRef` is an `existing` resource block — a separate
+// symbolic reference that Bicep does not automatically link to the `afdProfile`
+// module that creates the profile. Without this dependsOn, ARM could attempt to
+// create the custom domain child resource before the parent profile deployment
+// (the AVM module) has completed, causing a ResourceNotFound error.
+resource customDomain 'Microsoft.Cdn/profiles/customDomains@2025-04-15' = if (hasCustomDomain) {
+  parent: afdProfileRef
+  name: customDomainResourceName
+  properties: {
+    hostName: customDomainHostName
+    tlsSettings: {
+      certificateType: 'ManagedCertificate'
+      minimumTlsVersion: 'TLS12'
+    }
+  }
+  dependsOn: [
+    afdProfile
+  ]
+}
+
+// ── Route update: associate custom domain ────────────────────────────────────
+// After the custom domain is provisioned, update the route (which the AVM module
+// created without a custom domain) to add the custom domain association. This is
+// a full PUT on the route resource — all route properties must be repeated here.
+// The explicit dependsOn ensures the custom domain exists before the route
+// references it, matching the pattern in the official Azure quickstart template.
+resource afdRouteWithCustomDomain 'Microsoft.Cdn/profiles/afdEndpoints/routes@2025-04-15' = if (hasCustomDomain) {
+  parent: afdProfileRef::afdEndpointRef
+  name: routeName
+  properties: {
+    customDomains: [
+      {
+        id: customDomain.id
+      }
+    ]
+    originGroup: {
+      id: afdProfileRef::originGroupRef.id
+    }
+    forwardingProtocol: 'HttpsOnly'
+    httpsRedirect: 'Enabled'
+    enabledState: 'Enabled'
+    linkToDefaultDomain: 'Enabled'
+    patternsToMatch: [
+      '/*'
+    ]
+    supportedProtocols: [
+      'Http'
+      'Https'
+    ]
   }
 }
 
@@ -265,11 +304,7 @@ resource securityPolicy 'Microsoft.Cdn/profiles/securityPolicies@2025-04-15' = {
             ],
             hasCustomDomain ? [
               {
-                id: resourceId(
-                  'Microsoft.Cdn/profiles/customDomains',
-                  afdProfileName,
-                  customDomainResourceName
-                )
+                id: customDomain.id
               }
             ] : []
           )
@@ -283,6 +318,7 @@ resource securityPolicy 'Microsoft.Cdn/profiles/securityPolicies@2025-04-15' = {
   }
   dependsOn: [
     afdProfile
+    afdRouteWithCustomDomain
   ]
 }
 
@@ -301,4 +337,4 @@ output frontDoorEndpointHostName string = afdProfileRef::afdEndpointRef.properti
 output customDomainHostName string = customDomainHostName
 
 @description('DNS validation token for custom domain ownership verification. Add this as a TXT record at _dnsauth.<customDomain> to allow Microsoft to issue a managed certificate. Empty string when no custom domain is configured.')
-output customDomainValidationToken string = hasCustomDomain ? afdProfileRef::customDomainRef.properties.validationProperties.validationToken : ''
+output customDomainValidationToken string = customDomain.?properties.?validationProperties.?validationToken ?? ''
