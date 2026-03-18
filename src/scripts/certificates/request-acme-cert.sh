@@ -161,6 +161,10 @@ request_certificate() {
     export CF_Account_ID=""  # Not required for DNS API
     export CF_Zone_ID=""     # Auto-detected by acme.sh
 
+    # Disable DNS-over-HTTPS (DOH) to avoid connectivity issues
+    # acme.sh may fail with curl error 7 if DOH servers are unreachable
+    export NO_DOH=1
+
     # Construct acme.sh command
     local acme_cmd="$HOME/.acme.sh/acme.sh --issue"
     acme_cmd="$acme_cmd -d $cert_name"

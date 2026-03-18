@@ -213,6 +213,27 @@ Register-ScheduledTask -TaskName "RenewAcmeCert" -Action $action -Trigger $trigg
 - Ensure DNS propagation is complete (may take a few minutes)
 - Try using Let's Encrypt staging server first to test
 
+#### 1a. Curl Error 7 / DOH Connection Failures
+
+**Symptom:** Script fails with repeated curl error 7 messages and "No DOH" warnings
+
+```
+[Date/Time] Please refer to https://curl.haxx.se/libcurl/c/libcurl-errors.html for error code: 7
+[Date/Time] No DOH
+```
+
+**Root Cause:** acme.sh attempts to verify DNS records using DNS-over-HTTPS (DOH) servers, but these servers may be unreachable in certain network environments (corporate firewalls, restricted networks, or when DOH services are blocked).
+
+**Solutions:**
+- The script now automatically disables DOH by setting `NO_DOH=1` (as of this version)
+- If using an older version of the script, set the environment variable manually:
+  ```bash
+  export NO_DOH=1
+  ./request-acme-cert.sh "example.com" "your-token"
+  ```
+- Verify outbound network connectivity allows HTTPS traffic to Let's Encrypt and Cloudflare
+- Check firewall rules if running in a restricted environment
+
 #### 2. Rate Limits
 
 **Symptom:** Error message about rate limits
