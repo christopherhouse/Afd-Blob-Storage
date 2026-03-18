@@ -41,3 +41,5 @@ param kvSoftDeleteRetentionInDays = 7
 // ── Front Door & WAF ──────────────────────────────────────────────────────────
 
 param afdWafMode = 'Prevention'
+
+param afdCustomDomainHostName = 'blob.christopher-house.com'

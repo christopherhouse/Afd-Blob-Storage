@@ -111,10 +111,31 @@ jobs:
 
       # ── 3. Lint / build ─────────────────────────────────────────────────────
       # `az bicep build` compiles the template to ARM JSON, surfacing any
-      # linter warnings as warnings/errors. The compiled output is discarded;
-      # we only care about the exit code.
-      - name: Bicep build (lint)
-        run: az bicep build --file src/bicep/main.bicep
+      # linter warnings as warnings/errors. The compiled output is saved to
+      # src/bicep/main.json so it can be published as a workflow artifact.
+      - name: Bicep build (compile to ARM JSON)
+        run: az bicep build --file src/bicep/main.bicep --outfile src/bicep/main.json
+
+      # ── 4. Upload compiled ARM JSON artifact ─────────────────────────────────
+      # Publishes the ARM JSON produced by `az bicep build` so it is available
+      # for download from the Actions run without needing to re-run the build.
+      - name: Upload compiled Bicep ARM JSON
+        uses: actions/upload-artifact@v4
+        with:
+          name: bicep-arm-json-${{ github.run_number }}
+          path: src/bicep/main.json
+          retention-days: 30
+
+      # ── 5. Upload Bicep source templates artifact ─────────────────────────────
+      # Publishes the raw Bicep source files (main template + all modules +
+      # parameter files) so reviewers can inspect the exact templates that
+      # produced the compiled JSON above.
+      - name: Upload Bicep source templates
+        uses: actions/upload-artifact@v4
+        with:
+          name: bicep-templates-${{ github.run_number }}
+          path: src/bicep/
+          retention-days: 30
 
   # ════════════════════════════════════════════════════════════════════════════
   # JOB 2 — Lint & validate Terraform
@@ -462,3 +483,17 @@ jobs:
           "
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      # ── 9. Upload Terraform plan artifacts ──────────────────────────────────
+      # Publishes both the binary plan file (consumed by `terraform apply`) and
+      # the human-readable text plan so stakeholders can review proposed changes
+      # without access to the Terraform CLI.
+      - name: Upload Terraform plan artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-plan-${{ github.run_number }}
+          path: |
+            src/terraform/tfplan
+            src/terraform/plan.txt
+          retention-days: 30

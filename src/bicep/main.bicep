@@ -56,6 +56,9 @@ param kvSoftDeleteRetentionInDays int = 90
 @allowed(['Detection', 'Prevention'])
 param afdWafMode string = 'Prevention'
 
+@description('Custom domain hostname for the AFD endpoint (e.g. blob.example.com). Leave empty to use the default .azurefd.net domain only.')
+param afdCustomDomainHostName string = ''
+
 // ── Variables ─────────────────────────────────────────────────────────────────
 
 // Common tags applied to every resource in this deployment.
@@ -191,6 +194,7 @@ module frontDoor 'modules/frontDoor/frontDoor.bicep' = {
     storageAccountName: storage.outputs.storageAccountName
     storageAccountId: storage.outputs.storageAccountId
     wafPolicyId: wafPolicy.outputs.wafPolicyId
+    customDomainHostName: afdCustomDomainHostName
     tags: commonTags
   }
 }
@@ -265,3 +269,6 @@ output frontDoorProfileName string = frontDoor.outputs.frontDoorProfileName
 
 @description('Auto-generated hostname of the AFD endpoint (e.g. <label>.azurefd.net).')
 output frontDoorEndpointHostName string = frontDoor.outputs.frontDoorEndpointHostName
+
+@description('Custom domain hostname configured for the AFD endpoint.')
+output frontDoorCustomDomainHostName string = frontDoor.outputs.customDomainHostName
