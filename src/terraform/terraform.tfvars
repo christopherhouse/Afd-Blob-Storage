@@ -65,4 +65,5 @@ enable_telemetry = false
 # Use 'Detection' in dev for rule tuning without blocking traffic.
 # Switch to 'Prevention' in staging/prod to actively block threats.
 # ---------------------------------------------------------------------------
-afd_waf_mode = "Prevention"
+afd_waf_mode                = "Prevention"
+afd_custom_domain_host_name = "storage.christopher-house.com"

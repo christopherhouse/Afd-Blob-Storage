@@ -94,3 +94,9 @@ variable "enable_telemetry" {
   description = "Enable Microsoft telemetry for the Azure Verified Module. Set to false in air-gapped or regulated environments."
   default     = false
 }
+
+variable "custom_domain_host_name" {
+  type        = string
+  description = "Custom domain hostname for the AFD endpoint (e.g. storage.example.com). Leave empty to use the default .azurefd.net domain only."
+  default     = ""
+}

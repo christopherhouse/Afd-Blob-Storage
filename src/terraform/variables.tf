@@ -160,3 +160,9 @@ variable "afd_waf_mode" {
     error_message = "afd_waf_mode must be either 'Detection' or 'Prevention'."
   }
 }
+
+variable "afd_custom_domain_host_name" {
+  type        = string
+  description = "Custom domain hostname for the Terraform AFD endpoint (e.g. storage.christopher-house.com). Leave empty to use only the default .azurefd.net domain."
+  default     = ""
+}
