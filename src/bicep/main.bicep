@@ -52,6 +52,10 @@ param logRetentionInDays int = 30
 @maxValue(90)
 param kvSoftDeleteRetentionInDays int = 90
 
+@description('Azure Front Door WAF policy enforcement mode. Prevention blocks matched requests; Detection only logs them. Use Detection for initial rollout validation.')
+@allowed(['Detection', 'Prevention'])
+param afdWafMode string = 'Prevention'
+
 // ── Variables ─────────────────────────────────────────────────────────────────
 
 // Common tags applied to every resource in this deployment.
@@ -156,6 +160,41 @@ module privateEndpoint 'modules/networking/privateEndpoint.bicep' = {
   }
 }
 
+// ── Module: WAF Policy ─────────────────────────────────────────────────────────
+// Deploys the Azure Front Door Premium WAF policy (DRS 2.1 + BotManagerRuleSet 1.0).
+// Must be deployed before the Front Door profile so its resource ID can be passed
+// to the security policy association.
+
+module wafPolicy 'modules/frontDoor/wafPolicy.bicep' = {
+  name: 'wafPolicyDeployment-${deployment().name}'
+  params: {
+    workloadName: workloadName
+    environmentName: environmentName
+    locationShort: locationShort
+    wafMode: afdWafMode
+    tags: commonTags
+  }
+}
+
+// ── Module: Azure Front Door Premium ──────────────────────────────────────────
+// Deploys the AFD Premium profile, endpoint, blob origin group (via Private Link),
+// route, and security policy linking the WAF policy to the endpoint.
+// Depends on: storage (for storageAccountId/Name) and wafPolicy (for wafPolicyId).
+
+module frontDoor 'modules/frontDoor/frontDoor.bicep' = {
+  name: 'frontDoorDeployment-${deployment().name}'
+  params: {
+    location: location
+    workloadName: workloadName
+    environmentName: environmentName
+    locationShort: locationShort
+    storageAccountName: storage.outputs.storageAccountName
+    storageAccountId: storage.outputs.storageAccountId
+    wafPolicyId: wafPolicy.outputs.wafPolicyId
+    tags: commonTags
+  }
+}
+
 // ── Outputs ───────────────────────────────────────────────────────────────────
 
 // Networking
@@ -210,3 +249,19 @@ output privateEndpointId string = privateEndpoint.outputs.privateEndpointId
 
 @description('Name of the Storage Account Private Endpoint.')
 output privateEndpointName string = privateEndpoint.outputs.privateEndpointName
+
+// Front Door & WAF
+@description('Resource ID of the deployed WAF Policy.')
+output wafPolicyId string = wafPolicy.outputs.wafPolicyId
+
+@description('Name of the deployed WAF Policy.')
+output wafPolicyName string = wafPolicy.outputs.wafPolicyName
+
+@description('Resource ID of the deployed Azure Front Door Premium profile.')
+output frontDoorProfileId string = frontDoor.outputs.frontDoorProfileId
+
+@description('Name of the deployed Azure Front Door Premium profile.')
+output frontDoorProfileName string = frontDoor.outputs.frontDoorProfileName
+
+@description('Auto-generated hostname of the AFD endpoint (e.g. <label>.azurefd.net).')
+output frontDoorEndpointHostName string = frontDoor.outputs.frontDoorEndpointHostName

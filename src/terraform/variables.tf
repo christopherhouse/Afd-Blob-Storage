@@ -145,3 +145,18 @@ variable "enable_telemetry" {
   description = "Enable Microsoft telemetry for Azure Verified Modules. Set to false in air-gapped or regulated environments."
   default     = false
 }
+
+# ---------------------------------------------------------------------------
+# Azure Front Door + WAF
+# ---------------------------------------------------------------------------
+
+variable "afd_waf_mode" {
+  type        = string
+  description = "WAF policy mode for Azure Front Door. Use 'Prevention' to block matching requests (production) or 'Detection' to log only without blocking (dev/testing or rule tuning)."
+  default     = "Prevention"
+
+  validation {
+    condition     = contains(["Detection", "Prevention"], var.afd_waf_mode)
+    error_message = "afd_waf_mode must be either 'Detection' or 'Prevention'."
+  }
+}

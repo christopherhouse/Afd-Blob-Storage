@@ -59,3 +59,10 @@ owner_tag = "platform-team"
 # Disable AVM telemetry in dev; enable in prod for Microsoft support insights.
 # ---------------------------------------------------------------------------
 enable_telemetry = false
+
+# ---------------------------------------------------------------------------
+# Azure Front Door + WAF
+# Use 'Detection' in dev for rule tuning without blocking traffic.
+# Switch to 'Prevention' in staging/prod to actively block threats.
+# ---------------------------------------------------------------------------
+afd_waf_mode = "Prevention"
