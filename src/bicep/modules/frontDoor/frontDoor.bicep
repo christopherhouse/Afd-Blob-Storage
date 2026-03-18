@@ -209,11 +209,12 @@ module afdProfile 'br/public:avm/res/cdn/profile:0.8.0' = {
 // The AVM cdn/profile:0.8.0 module does not surface per-endpoint hostnames as
 // outputs for AFD endpoints (only classic CDN endpoints). We therefore read the
 // hostname directly from the deployed AFD endpoint resource using `existing`.
-// Using `afdProfile.outputs.name` (rather than the local `afdProfileName`
-// variable) creates an implicit dependency on the AVM module, ensuring the
-// endpoint exists before this reference is evaluated.
+// The local variable `afdProfileName` is used (instead of `afdProfile.outputs.name`)
+// to avoid a nested reference() expression in the ARM output, which ARM template
+// validation rejects. Outputs are always evaluated after all resources in the
+// template are deployed, so the profile is guaranteed to exist at this point.
 resource afdProfileRef 'Microsoft.Cdn/profiles@2025-04-15' existing = {
-  name: afdProfile.outputs.name
+  name: afdProfileName
 
   resource afdEndpointRef 'afdEndpoints@2025-04-15' existing = {
     name: afdEndpointName

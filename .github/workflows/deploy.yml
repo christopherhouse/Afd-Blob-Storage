@@ -329,17 +329,12 @@ jobs:
       - name: Create plugin cache directory
         run: mkdir -p "$TF_PLUGIN_CACHE_DIR"
 
-      # ── 4. Azure login (OIDC) ───────────────────────────────────────────────
-      # Must happen before `terraform init` so the OIDC token is in place for
-      # the azurerm backend to authenticate against Azure Blob Storage.
-      - name: Azure login (OIDC)
-        uses: azure/login@v2
-        with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-
-      # ── 5. Terraform init ────────────────────────────────────────────────────
+      # ── 4. Terraform init ────────────────────────────────────────────────────
+      # Terraform authenticates to Azure using OIDC directly via the ARM_USE_OIDC,
+      # ARM_CLIENT_ID, ARM_TENANT_ID, and ARM_SUBSCRIPTION_ID environment variables
+      # set on this job. The azurerm provider and backend both support GitHub Actions
+      # OIDC natively — no separate `az login` step is required.
+      #
       # Backend config is passed via -backend-config flags so that sensitive
       # values (storage account name, RG) are sourced from environment variables
       # rather than being committed to providers.tf.
@@ -357,7 +352,7 @@ jobs:
             -backend-config="use_azuread_auth=true" \
             -backend-config="subscription_id=${{ vars.AZURE_SUBSCRIPTION_ID }}"
 
-      # ── 6. Terraform plan ────────────────────────────────────────────────────
+      # ── 5. Terraform plan ────────────────────────────────────────────────────
       # Writes a binary plan file (tfplan) consumed by apply, and a human-
       # readable text copy (plan.txt) for the Step Summary.
       # set -o pipefail ensures a non-zero exit from terraform is not masked
@@ -393,7 +388,7 @@ jobs:
           echo ""                   >> "$GITHUB_OUTPUT"
           echo "PLAN_EOF"           >> "$GITHUB_OUTPUT"
 
-      # ── 7. Terraform apply ───────────────────────────────────────────────────
+      # ── 6. Terraform apply ───────────────────────────────────────────────────
       # Applies the saved plan file. -auto-approve is safe here because the plan
       # was already gated by the "dev" GitHub Environment protection rules above
       # (Settings → Environments → dev → Required reviewers), which require
@@ -409,7 +404,7 @@ jobs:
             tfplan \
             2>&1 | tee src/terraform/apply.txt
 
-      # ── 8. Capture outputs ───────────────────────────────────────────────────
+      # ── 7. Capture outputs ───────────────────────────────────────────────────
       # Extract Terraform outputs as JSON for the Step Summary.
       # Sensitive outputs (e.g. log_analytics_workspace_id) are excluded via
       # `terraform output -json` returning a redacted placeholder.
@@ -422,7 +417,7 @@ jobs:
           echo "$TF_OUT"            >> "$GITHUB_OUTPUT"
           echo "TF_EOF"             >> "$GITHUB_OUTPUT"
 
-      # ── 9. Step Summary ─────────────────────────────────────────────────────
+      # ── 8. Step Summary ─────────────────────────────────────────────────────
       - name: Write deployment summary
         if: always()
         run: |
