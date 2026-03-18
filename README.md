@@ -107,6 +107,11 @@ az storage account private-endpoint-connection approve \
 │   │   ├── parameters/
 │   │   │   └── main.dev.bicepparam
 │   │   └── main.bicep
+│   ├── scripts/                 # Utility scripts
+│   │   └── certificates/        # ACME certificate management scripts
+│   │       ├── request-acme-cert.sh   # Bash script for Let's Encrypt
+│   │       ├── request-acme-cert.ps1  # PowerShell script for Let's Encrypt
+│   │       └── README.md              # Certificate scripts documentation
 │   └── terraform/               # Terraform root module + child modules
 │       ├── modules/
 │       │   ├── front_door/      # AFD Premium profile + WAF policy (AVM)
@@ -350,6 +355,56 @@ The Bicep and Terraform deployments intentionally use distinct `workloadName` / 
 | Terraform | `afdblobtf` | `stafdblobtfdeveus2` |
 
 Both stacks can coexist in the same subscription simultaneously.
+
+---
+
+## ACME Certificate Management Scripts
+
+The repository includes utility scripts for requesting TLS certificates from Let's Encrypt using the ACME protocol with DNS-01 validation via Cloudflare DNS. These scripts are useful for obtaining certificates for custom domains used with Azure Front Door.
+
+### Available Scripts
+
+- **Bash:** `src/scripts/certificates/request-acme-cert.sh`
+- **PowerShell:** `src/scripts/certificates/request-acme-cert.ps1`
+
+Both scripts provide identical functionality:
+- Request new certificates from Let's Encrypt
+- Perform DNS-01 validation using Cloudflare API
+- Convert certificates to password-protected PFX format
+- Support wildcard certificates (e.g., `*.example.com`)
+
+### Quick Start
+
+**Bash:**
+```bash
+./src/scripts/certificates/request-acme-cert.sh "example.com" "your-cloudflare-api-token"
+```
+
+**PowerShell:**
+```powershell
+./src/scripts/certificates/request-acme-cert.ps1 -CertificateName "example.com" -CloudflareApiToken "your-token"
+```
+
+### Prerequisites
+
+- Valid Cloudflare API token with DNS edit permissions
+- Domain managed by Cloudflare DNS
+- For Bash: `acme.sh` (auto-installed), `openssl`, `curl`/`wget`
+- For PowerShell: PowerShell 7.0+, `Posh-ACME` module (auto-installed)
+
+### Importing to Azure Key Vault
+
+After obtaining a certificate, import it to Azure Key Vault for use with Front Door:
+
+```bash
+az keyvault certificate import \
+  --vault-name <key-vault-name> \
+  --name <certificate-name> \
+  --file ./certificates/<certificate-name>.pfx \
+  --password '<pfx-password>'
+```
+
+For detailed usage instructions, configuration options, troubleshooting, and integration with Azure Front Door, see the [certificate scripts README](src/scripts/certificates/README.md).
 
 ---
 
