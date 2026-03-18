@@ -55,8 +55,10 @@ var secPolicyName   = 'secpol-${resourcePrefix}-${locationShort}'
 // ensuring this template is cloud-agnostic.
 var blobHostName = '${storageAccountName}.blob.${environment().suffixes.storage}'
 
-// Pre-compute the AFD endpoint resource ID so it can be referenced inside the
-// securityPolicies associations block within the same AVM module call.
+// Pre-compute the AFD endpoint resource ID for use in the security policy
+// associations block. The security policy is deployed as a separate resource
+// (after the AVM module) to avoid a race condition where ARM processes the
+// security policy before the endpoint is fully created.
 // resourceId() constructs: /subscriptions/{sub}/resourceGroups/{rg}/providers/
 //   Microsoft.Cdn/profiles/{profile}/afdEndpoints/{endpoint}
 var afdEndpointResourceId = resourceId(
@@ -177,30 +179,6 @@ module afdProfile 'br/public:avm/res/cdn/profile:0.8.0' = {
       }
     ]
 
-    // ── Security Policy ──────────────────────────────────────────────────────────
-    // Associates the WAF policy with the AFD endpoint. All requests reaching the
-    // endpoint are inspected by the WAF before being forwarded to the origin.
-    securityPolicies: [
-      {
-        name: secPolicyName
-        wafPolicyResourceId: wafPolicyId
-        associations: [
-          {
-            // Reference the AFD endpoint by its pre-computed resource ID.
-            domains: [
-              {
-                id: afdEndpointResourceId
-              }
-            ]
-            // Apply WAF inspection to all URL paths.
-            patternsToMatch: [
-              '/*'
-            ]
-          }
-        ]
-      }
-    ]
-
     tags: tags
   }
 }
@@ -219,6 +197,44 @@ resource afdProfileRef 'Microsoft.Cdn/profiles@2025-04-15' existing = {
   resource afdEndpointRef 'afdEndpoints@2025-04-15' existing = {
     name: afdEndpointName
   }
+}
+
+// ── Security Policy ────────────────────────────────────────────────────────────
+// Deployed as a separate resource (not inside the AVM module call) so that ARM
+// guarantees the AFD endpoint exists before the security policy association is
+// attempted. Passing securityPolicies inside the same AVM module call that also
+// creates afdEndpoints can trigger a ResourceNotFound error because ARM does not
+// guarantee child-resource ordering within a single nested deployment.
+// The explicit dependsOn ensures the entire afdProfile module — including the
+// endpoint — has completed before this resource is created.
+resource securityPolicy 'Microsoft.Cdn/profiles/securityPolicies@2025-04-15' = {
+  parent: afdProfileRef
+  name: secPolicyName
+  properties: {
+    parameters: {
+      type: 'WebApplicationFirewall'
+      wafPolicy: {
+        id: wafPolicyId
+      }
+      associations: [
+        {
+          // Associate the WAF policy with the AFD endpoint by its resource ID.
+          domains: [
+            {
+              id: afdEndpointResourceId
+            }
+          ]
+          // Apply WAF inspection to all URL paths.
+          patternsToMatch: [
+            '/*'
+          ]
+        }
+      ]
+    }
+  }
+  dependsOn: [
+    afdProfile
+  ]
 }
 
 // ── Outputs ───────────────────────────────────────────────────────────────────
