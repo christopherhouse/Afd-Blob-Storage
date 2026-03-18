@@ -60,6 +60,21 @@ module "afd_profile" {
     }
   }
 
+  # --- Custom Domain ---
+  # When custom_domain_host_name is provided, register it on the AFD profile
+  # with a Microsoft-managed TLS certificate. DNS ownership validation is
+  # required: create a CNAME from the hostname to the AFD endpoint hostname.
+  front_door_custom_domains = var.custom_domain_host_name != "" ? {
+    "custom" = {
+      name      = replace(var.custom_domain_host_name, ".", "-")
+      host_name = var.custom_domain_host_name
+      tls = {
+        certificate_type    = "ManagedCertificate"
+        minimum_tls_version = "TLS12"
+      }
+    }
+  } : {}
+
   # --- Origin Group ---
   # Groups origins for health monitoring and load-balancing decisions.
   # HTTPS health probes run from AFD PoPs to the storage blob service
@@ -156,6 +171,9 @@ module "afd_profile" {
 
       # Redirect any plain-HTTP request to HTTPS automatically.
       https_redirect_enabled = true
+
+      # Associate the custom domain with this route when one is configured.
+      custom_domain_keys = var.custom_domain_host_name != "" ? ["custom"] : []
     }
   }
 
@@ -206,8 +224,9 @@ module "afd_profile" {
         front_door_firewall_policy_key = "waf"
         association = {
           # Apply the WAF policy to the AFD endpoint for all URL patterns.
-          endpoint_keys     = ["endpoint"]
-          patterns_to_match = ["/*"]
+          endpoint_keys      = ["endpoint"]
+          custom_domain_keys = var.custom_domain_host_name != "" ? ["custom"] : []
+          patterns_to_match  = ["/*"]
         }
       }
     }

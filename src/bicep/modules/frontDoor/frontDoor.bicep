@@ -35,6 +35,9 @@ param wafPolicyId string
 @description('Resource tags applied to every resource in this module.')
 param tags object = {}
 
+@description('Custom domain hostname for the AFD endpoint (e.g. blob.example.com). Leave empty to use the default .azurefd.net domain only.')
+param customDomainHostName string = ''
+
 // ── Variables ─────────────────────────────────────────────────────────────────
 
 var resourcePrefix = '${workloadName}-${environmentName}'
@@ -49,6 +52,11 @@ var originGroupName = 'og-${resourcePrefix}'
 var originName      = 'origin-${resourcePrefix}-blob-${locationShort}'
 var routeName       = 'route-${resourcePrefix}-blob-${locationShort}'
 var secPolicyName   = 'secpol-${resourcePrefix}-${locationShort}'
+
+// Custom domain: replace dots with hyphens to form a valid ARM resource name.
+// e.g. 'blob.christopher-house.com' → 'blob-christopher-house-com'
+var customDomainResourceName = replace(customDomainHostName, '.', '-')
+var hasCustomDomain          = !empty(customDomainHostName)
 
 // Storage Account blob FQDN — used as the origin hostname and origin host header.
 // environment().suffixes.storage resolves to 'core.windows.net' in public cloud,
@@ -82,6 +90,23 @@ module afdProfile 'br/public:avm/res/cdn/profile:0.8.0' = {
     // AFD profiles are always a global resource regardless of workload region.
     location: 'global'
 
+    // ── Custom Domains ──────────────────────────────────────────────────────────
+    // When a custom domain hostname is provided, register it on the AFD profile
+    // with a Microsoft-managed TLS certificate (auto-renewed, no Key Vault needed).
+    // The DNS validation CNAME must be created by the domain owner before the
+    // certificate can be issued — see the customDomainValidationToken output.
+    // AVM cdn/profile:0.8.0 expects certificateType and minimumTlsVersion as
+    // flat top-level properties on each custom domain object (not nested under
+    // tlsSettings).
+    customDomains: hasCustomDomain ? [
+      {
+        name: customDomainResourceName
+        hostName: customDomainHostName
+        certificateType: 'ManagedCertificate'
+        minimumTlsVersion: 'TLS12'
+      }
+    ] : []
+
     // ── AFD Endpoint ────────────────────────────────────────────────────────────
     // One endpoint exposes the auto-generated *.azurefd.net hostname to clients.
     // TenantReuse preserves the auto-generated hostname label across redeployments
@@ -110,6 +135,9 @@ module afdProfile 'br/public:avm/res/cdn/profile:0.8.0' = {
               'Http'
               'Https'
             ]
+            // Associate the custom domain with this route so AFD serves traffic
+            // arriving on the custom hostname via the same origin group.
+            customDomainNames: hasCustomDomain ? [customDomainResourceName] : []
           }
         ]
       }
@@ -197,6 +225,15 @@ resource afdProfileRef 'Microsoft.Cdn/profiles@2025-04-15' existing = {
   resource afdEndpointRef 'afdEndpoints@2025-04-15' existing = {
     name: afdEndpointName
   }
+
+  // Read the validation token for the custom domain so callers can create the
+  // required DNS ownership-verification CNAME record before certificate issuance.
+  // The resource name falls back to a no-op placeholder when no custom domain is
+  // configured; the hasCustomDomain guard in the output prevents this reference
+  // from being resolved at deployment time in that case.
+  resource customDomainRef 'customDomains@2025-04-15' existing = {
+    name: hasCustomDomain ? customDomainResourceName : 'no-custom-domain'
+  }
 }
 
 // ── Security Policy ────────────────────────────────────────────────────────────
@@ -218,12 +255,24 @@ resource securityPolicy 'Microsoft.Cdn/profiles/securityPolicies@2025-04-15' = {
       }
       associations: [
         {
-          // Associate the WAF policy with the AFD endpoint by its resource ID.
-          domains: [
-            {
-              id: afdEndpointResourceId
-            }
-          ]
+          // Associate the WAF policy with the AFD endpoint and, when configured,
+          // also with the custom domain so WAF inspection covers both entry points.
+          domains: concat(
+            [
+              {
+                id: afdEndpointResourceId
+              }
+            ],
+            hasCustomDomain ? [
+              {
+                id: resourceId(
+                  'Microsoft.Cdn/profiles/customDomains',
+                  afdProfileName,
+                  customDomainResourceName
+                )
+              }
+            ] : []
+          )
           // Apply WAF inspection to all URL paths.
           patternsToMatch: [
             '/*'
@@ -247,3 +296,9 @@ output frontDoorProfileName string = afdProfile.outputs.name
 
 @description('Auto-generated hostname of the AFD endpoint (e.g. <label>.azurefd.net). Use this as the CNAME target for custom domains.')
 output frontDoorEndpointHostName string = afdProfileRef::afdEndpointRef.properties.hostName
+
+@description('Custom domain hostname configured on the AFD endpoint. Empty string when no custom domain is configured.')
+output customDomainHostName string = customDomainHostName
+
+@description('DNS validation token for custom domain ownership verification. Add this as a TXT record at _dnsauth.<customDomain> to allow Microsoft to issue a managed certificate. Empty string when no custom domain is configured.')
+output customDomainValidationToken string = hasCustomDomain ? afdProfileRef::customDomainRef.properties.validationProperties.validationToken : ''
