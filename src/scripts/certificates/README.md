@@ -225,12 +225,10 @@ Register-ScheduledTask -TaskName "RenewAcmeCert" -Action $action -Trigger $trigg
 **Root Cause:** acme.sh attempts to verify DNS records using DNS-over-HTTPS (DOH) servers, but these servers may be unreachable in certain network environments (corporate firewalls, restricted networks, or when DOH services are blocked).
 
 **Solutions:**
-- The script now automatically disables DOH by setting `NO_DOH=1` (as of this version)
-- If using an older version of the script, set the environment variable manually:
-  ```bash
-  export NO_DOH=1
-  ./request-acme-cert.sh "example.com" "your-token"
-  ```
+- The script now automatically uses `--dnssleep 60` to wait for DNS propagation instead of attempting DOH verification
+- This makes acme.sh wait 60 seconds after setting TXT records before verification, avoiding blocked DOH queries
+- The script also sets `NO_DOH=1` environment variable as an additional safeguard
+- If you need to adjust the DNS sleep time, modify the `--dnssleep` parameter in the script (line 174)
 - Verify outbound network connectivity allows HTTPS traffic to Let's Encrypt and Cloudflare
 - Check firewall rules if running in a restricted environment
 

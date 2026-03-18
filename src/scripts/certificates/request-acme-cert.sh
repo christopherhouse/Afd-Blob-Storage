@@ -166,11 +166,14 @@ request_certificate() {
     export NO_DOH=1
 
     # Construct acme.sh command
+    # Note: --dnssleep 60 waits for DNS propagation instead of using DOH verification
+    # This prevents curl error 7 in networks where DOH is blocked
     local acme_cmd="$HOME/.acme.sh/acme.sh --issue"
     acme_cmd="$acme_cmd -d $cert_name"
     acme_cmd="$acme_cmd --dns dns_cf"
     acme_cmd="$acme_cmd --keylength $KEY_ALGORITHM"
     acme_cmd="$acme_cmd --server $ACME_SERVER"
+    acme_cmd="$acme_cmd --dnssleep 60"
     acme_cmd="$acme_cmd --force"
 
     log_info "Executing: $acme_cmd"
