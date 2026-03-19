@@ -98,6 +98,9 @@ locals {
     afd_origin       = "origin-${local.resource_prefix}"
     # WAF policy names cannot contain hyphens (Azure restriction); strip them.
     waf_policy = lower(replace("waf${var.workload_name}${var.environment_name}", "-", ""))
+
+    # User Assigned Managed Identity name (CAF-compliant prefix: id-).
+    user_assigned_identity = "id-${local.resource_prefix}"
   }
 
   # Tags applied to every resource.
@@ -193,6 +196,34 @@ module "security" {
 }
 
 ###############################################################################
+# User Assigned Managed Identity
+# Deploys a UAMI that will be attached to the Azure Front Door profile to
+# authenticate origin requests (health probes) to the storage account's health
+# container using Entra ID instead of anonymous access.
+###############################################################################
+
+resource "azurerm_user_assigned_identity" "afd" {
+  name                = local.names.user_assigned_identity
+  location            = data.azurerm_resource_group.this.location
+  resource_group_name = data.azurerm_resource_group.this.name
+  tags                = local.common_tags
+}
+
+###############################################################################
+# Role Assignment: Storage Blob Data Reader for UAMI
+# Grants the User Assigned Managed Identity the Storage Blob Data Reader role
+# on the storage account so that the AFD health probe can read
+# health/health.txt through the origin group authentication mechanism.
+###############################################################################
+
+resource "azurerm_role_assignment" "afd_storage_blob_data_reader" {
+  scope                = module.storage.storage_account_id
+  role_definition_name = "Storage Blob Data Reader"
+  principal_id         = azurerm_user_assigned_identity.afd.principal_id
+  principal_type       = "ServicePrincipal"
+}
+
+###############################################################################
 # Private DNS Module
 # Deploys a Private DNS Zone for blob storage and links it to the workload VNet
 # so that private endpoint DNS queries resolve correctly inside the network.
@@ -255,6 +286,7 @@ module "front_door" {
   waf_mode                   = var.afd_waf_mode
   custom_domain_host_name    = var.afd_custom_domain_host_name
   log_analytics_workspace_id = module.monitoring.workspace_resource_id
+  user_assigned_identity_id  = azurerm_user_assigned_identity.afd.id
   tags                       = local.common_tags
   enable_telemetry           = var.enable_telemetry
 
