@@ -2,8 +2,8 @@
 # Networking Module -- Main
 #
 # Deploys an Azure Virtual Network with a single dedicated subnet for private
-# endpoints. The private-endpoint subnet has network policies disabled, which
-# is required for private endpoint deployment.
+# endpoints. The private-endpoint subnet has an NSG associated and network
+# policies set to NetworkSecurityGroupEnabled for zero-trust enforcement.
 #
 # AVM Used: Azure/avm-res-network-virtualnetwork/azurerm @ 0.17.1
 # Registry: https://registry.terraform.io/modules/Azure/avm-res-network-virtualnetwork/azurerm/0.17.1
@@ -26,16 +26,20 @@ module "vnet" {
 
   # --- Subnets ---
   # A single subnet dedicated to private endpoints.
-  # private_endpoint_network_policies = "Disabled" is mandatory for private
-  # endpoints to function correctly in this subnet.
+  # NSG is associated and network policies are set to NetworkSecurityGroupEnabled
+  # so NSG rules are enforced on private endpoint traffic (zero-trust posture).
   subnets = {
     private_endpoints = {
       name             = var.subnet_name
       address_prefixes = [var.private_endpoint_subnet_prefix]
 
-      # Required: disable network policies so private endpoint NIC IPs can be
-      # assigned and traffic can flow without being blocked by NSG/UDR policies.
-      private_endpoint_network_policies = "Disabled"
+      # Enable NSG-only network policies so zero-trust NSG rules apply to
+      # private endpoint traffic while route table policies remain disabled.
+      private_endpoint_network_policies = "NetworkSecurityGroupEnabled"
+
+      network_security_group = {
+        id = var.network_security_group_id
+      }
     }
   }
 

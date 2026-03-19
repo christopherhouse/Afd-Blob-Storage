@@ -76,6 +76,21 @@ var commonTags = union(tags, {
   costCenter: workloadName
 })
 
+// ── Module: Network Security Group ─────────────────────────────────────────────
+// Deployed before the VNet so its resource ID can be associated with the
+// private-endpoint subnet. Implements zero-trust inbound/outbound rules.
+
+module nsg 'modules/networking/networkSecurityGroup.bicep' = {
+  name: 'nsgDeployment-${deployment().name}'
+  params: {
+    location: location
+    workloadName: workloadName
+    environmentName: environmentName
+    locationShort: locationShort
+    tags: commonTags
+  }
+}
+
 // ── Module: Virtual Network ────────────────────────────────────────────────────
 
 module networking 'modules/networking/virtualNetwork.bicep' = {
@@ -87,6 +102,7 @@ module networking 'modules/networking/virtualNetwork.bicep' = {
     locationShort: locationShort
     vnetAddressPrefix: vnetAddressPrefix
     privateEndpointSubnetPrefix: privateEndpointSubnetPrefix
+    networkSecurityGroupResourceId: nsg.outputs.nsgId
     tags: commonTags
   }
 }
@@ -211,6 +227,12 @@ module frontDoor 'modules/frontDoor/frontDoor.bicep' = {
 // ── Outputs ───────────────────────────────────────────────────────────────────
 
 // Networking
+@description('Resource ID of the deployed Network Security Group.')
+output nsgId string = nsg.outputs.nsgId
+
+@description('Name of the deployed Network Security Group.')
+output nsgName string = nsg.outputs.nsgName
+
 @description('Resource ID of the deployed Virtual Network.')
 output vnetId string = networking.outputs.vnetId
 
