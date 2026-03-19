@@ -209,12 +209,12 @@ resource "azurerm_cdn_frontdoor_route" "this" {
 #     attack patterns (SQLi, XSS, RFI, LFI, RCE, etc.)
 #   - Microsoft_BotManagerRuleSet 1.0: blocks malicious bot traffic.
 resource "azurerm_cdn_frontdoor_firewall_policy" "this" {
-  name                              = var.waf_policy_name
-  resource_group_name               = var.resource_group_name
-  sku_name                          = azurerm_cdn_frontdoor_profile.this.sku_name
-  enabled                           = true
-  mode                              = var.waf_mode
-  request_body_check_enabled        = true
+  name                       = var.waf_policy_name
+  resource_group_name        = var.resource_group_name
+  sku_name                   = azurerm_cdn_frontdoor_profile.this.sku_name
+  enabled                    = true
+  mode                       = var.waf_mode
+  request_body_check_enabled = true
 
   # OWASP-based Default Rule Set (DRS) 2.1 — blocks common application
   # layer attacks. "Block" means matching requests are rejected with 403.
