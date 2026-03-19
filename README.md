@@ -27,7 +27,7 @@ Internet ──► Azure Front Door Premium (WAF) ──► [Private Link] ─�
 | Private DNS Zone | `modules/networking/privateDnsZone.bicep` | `modules/private_dns/` | Resolves storage FQDN to private IP |
 | Log Analytics Workspace | `modules/monitoring/logAnalyticsWorkspace.bicep` | `modules/monitoring/` | Centralised diagnostic logs and metrics |
 | Key Vault | `modules/security/keyVault.bicep` | `modules/security/` | Stores secrets and certificates; no public network access |
-| User Assigned Managed Identity | `modules/identity/userAssignedIdentity.bicep` | *(root module)* | Identity for AFD origin group authentication |
+| User Assigned Managed Identity | `modules/identity/userAssignedIdentity.bicep` | *(Bicep only)* | Identity for AFD origin group authentication |
 
 ## Foundational Infrastructure
 
@@ -42,7 +42,7 @@ The following foundational resources are implemented in both `src/bicep/` and `s
 | Log Analytics Workspace | `modules/monitoring/logAnalyticsWorkspace.bicep` | `modules/monitoring/` | 30-day retention; receives diagnostic logs from all resources |
 | Key Vault | `modules/security/keyVault.bicep` | `modules/security/` | RBAC authorisation mode; public network access disabled; soft-delete and purge protection enabled |
 
-All modules use **Azure Verified Modules (AVM)** as the implementation foundation, with the exception of the Terraform Front Door module which uses native `azurerm_cdn_frontdoor_*` resources due to a [lifecycle issue](https://github.com/Azure/terraform-azurerm-avm-res-cdn-profile/issues) in the AVM CDN module that causes a destroy/recreate cycle on every apply. Environment-specific values are supplied via `src/bicep/parameters/main.dev.bicepparam` (Bicep) and `src/terraform/terraform.tfvars` (Terraform).
+All modules use **Azure Verified Modules (AVM)** as the implementation foundation, with the exception of the Terraform Front Door module which uses native `azurerm_cdn_frontdoor_*` resources due to a lifecycle issue in the AVM CDN module (v0.1.9) that causes a destroy/recreate cycle on every apply. Environment-specific values are supplied via `src/bicep/parameters/main.dev.bicepparam` (Bicep) and `src/terraform/terraform.tfvars` (Terraform).
 
 ---
 
@@ -95,7 +95,7 @@ When enabled (`enableFrontDoorHealthProbe = true` in Bicep / `enable_front_door_
 /health/health.txt
 ```
 
-The probe interval is **100 seconds** (Bicep) or **30 seconds** (Terraform). The origin group's load balancer evaluates health based on a sample of **4 probes**, requiring **3 successful responses** within a **50 ms additional-latency window** to consider the origin healthy.
+The probe interval is **100 seconds** (Bicep) or **30 seconds** (Terraform) — the values differ because each IaC track can be tuned independently; adjust the interval in the respective module to match your availability requirements. The origin group's load balancer evaluates health based on a sample of **4 probes**, requiring **3 successful responses** within a **50 ms additional-latency window** to consider the origin healthy.
 
 When the health probe is **disabled**, the origin group's health probe settings are omitted entirely (`healthProbeSettings: null` in Bicep, empty `health_probe {}` block in Terraform), and AFD assumes the origin is always healthy.
 
@@ -152,7 +152,7 @@ When uploading to a storage account that is fronted by Azure Front Door with a c
 
 | Argument | Value | Why |
 |---|---|---|
-| `--from-to` | `LocalBlob` | Tells azcopy the transfer direction explicitly (local file system → Azure Blob Storage), which is required when the default endpoint detection may not work due to private networking. |
+| `--from-to` | `LocalBlob` | Tells azcopy the transfer direction explicitly (local file system → Azure Blob Storage). Required for private storage accounts where automatic endpoint detection fails due to disabled public network access. |
 | `--trusted-microsoft-suffixes` | Your AFD endpoint hostname or custom domain (e.g., `blob.christopher-house.com`) | Allows azcopy to trust the non-standard hostname for authentication token scoping. Without this flag, azcopy may refuse to send credentials to a hostname that doesn't match `*.blob.core.windows.net`. |
 
 **Upload a single file:**
