@@ -14,12 +14,16 @@
 #   - Security Policy associating the WAF policy with the AFD endpoint
 #   - Diagnostic Settings (optional, sends logs & metrics to Log Analytics)
 #
-# NOTE: This module uses native azurerm_cdn_frontdoor_* resources instead of
-# the AVM module (Azure/avm-res-cdn-profile/azurerm). The AVM module was
-# previously used (v0.1.9) but caused the entire AFD profile and all child
-# resources to be destroyed and recreated on every `terraform apply`, which
-# is unacceptable for a production CDN endpoint. Native resources provide
-# stable, incremental updates without unnecessary destroy/recreate cycles.
+# GUIDELINE EXCEPTION — AVM not used for Azure Front Door
+# The repository coding guidelines mandate Azure Verified Modules (AVM) as
+# the default for every resource type. This module is a deliberate exception:
+# the AVM module Azure/avm-res-cdn-profile/azurerm (v0.1.9) caused the
+# entire AFD profile and all child resources to be torn down and recreated
+# on every `terraform apply`, even with no configuration changes. This
+# destroy/recreate behaviour is unacceptable for a production CDN endpoint
+# and cannot be mitigated via lifecycle rules or ignore_changes within the
+# AVM abstraction. Native azurerm_cdn_frontdoor_* resources provide stable,
+# incremental updates and full control over resource lifecycle.
 #
 # IMPORTANT — Private Link Approval Required After Deployment:
 #   After `terraform apply` completes, the Private Link connection from Azure
