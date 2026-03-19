@@ -55,3 +55,29 @@ variable "enable_telemetry" {
   description = "Enable Microsoft telemetry for the Azure Verified Module."
   default     = false
 }
+
+# ---------------------------------------------------------------------------
+# Network Access
+# ---------------------------------------------------------------------------
+
+variable "internet_ingestion_enabled" {
+  type        = string
+  description = "Allow ingestion over the public internet. The AVM module accepts a string: 'true', 'false', or 'SecuredByPerimeter'."
+  default     = "true"
+
+  validation {
+    condition     = contains(["true", "false", "SecuredByPerimeter"], var.internet_ingestion_enabled)
+    error_message = "internet_ingestion_enabled must be 'true', 'false', or 'SecuredByPerimeter'."
+  }
+}
+
+variable "internet_query_enabled" {
+  type        = string
+  description = "Allow querying over the public internet. The AVM module accepts a string: 'true', 'false', or 'SecuredByPerimeter'."
+  default     = "true"
+
+  validation {
+    condition     = contains(["true", "false", "SecuredByPerimeter"], var.internet_query_enabled)
+    error_message = "internet_query_enabled must be 'true', 'false', or 'SecuredByPerimeter'."
+  }
+}
