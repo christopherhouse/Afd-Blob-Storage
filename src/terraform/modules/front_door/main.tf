@@ -234,6 +234,18 @@ module "afd_profile" {
     }
   }
 
+  # --- Diagnostic Settings ---
+  # Send all AFD logs (access, health probe, WAF) and metrics to the central
+  # Log Analytics Workspace. Only enabled when a workspace ID is provided.
+  diagnostic_settings = var.log_analytics_workspace_id != "" ? {
+    afd_diag = {
+      name                  = "afd-diagnostics"
+      log_groups            = ["allLogs"]
+      metric_categories     = ["AllMetrics"]
+      workspace_resource_id = var.log_analytics_workspace_id
+    }
+  } : {}
+
   # --- Telemetry & Tags ---
   enable_telemetry = var.enable_telemetry
   tags             = var.tags

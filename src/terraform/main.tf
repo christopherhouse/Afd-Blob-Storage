@@ -243,19 +243,20 @@ module "private_endpoint" {
 module "front_door" {
   source = "./modules/front_door"
 
-  resource_group_name     = data.azurerm_resource_group.this.name
-  location                = data.azurerm_resource_group.this.location
-  afd_profile_name        = local.names.afd_profile
-  endpoint_name           = local.names.afd_endpoint
-  origin_group_name       = local.names.afd_origin_group
-  origin_name             = local.names.afd_origin
-  waf_policy_name         = local.names.waf_policy
-  storage_account_name    = module.storage.storage_account_name
-  storage_account_id      = module.storage.storage_account_id
-  waf_mode                = var.afd_waf_mode
-  custom_domain_host_name = var.afd_custom_domain_host_name
-  tags                    = local.common_tags
-  enable_telemetry        = var.enable_telemetry
+  resource_group_name        = data.azurerm_resource_group.this.name
+  location                   = data.azurerm_resource_group.this.location
+  afd_profile_name           = local.names.afd_profile
+  endpoint_name              = local.names.afd_endpoint
+  origin_group_name          = local.names.afd_origin_group
+  origin_name                = local.names.afd_origin
+  waf_policy_name            = local.names.waf_policy
+  storage_account_name       = module.storage.storage_account_name
+  storage_account_id         = module.storage.storage_account_id
+  waf_mode                   = var.afd_waf_mode
+  custom_domain_host_name    = var.afd_custom_domain_host_name
+  log_analytics_workspace_id = module.monitoring.workspace_resource_id
+  tags                       = local.common_tags
+  enable_telemetry           = var.enable_telemetry
 
   # Ensure the storage account is fully configured before AFD attempts to
   # establish the Private Link connection.
