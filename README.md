@@ -22,11 +22,12 @@ Internet ──► Azure Front Door Premium (WAF) ──► [Private Link] ─�
 | Custom Domain + Route | `modules/frontDoor/frontDoor.bicep` | `modules/front_door/` | Routes requests to the blob origin |
 | Origin Group + Origin | `modules/frontDoor/frontDoor.bicep` | `modules/front_door/` | Points AFD to storage via Private Link |
 | Storage Account | `modules/storage/storageAccount.bicep` | `modules/storage/` | Blob storage, public network access disabled |
-| Private Endpoint | `modules/networking/virtualNetwork.bicep` | `modules/private_endpoint/` | Connects storage into the VNet |
+| Private Endpoint | `modules/networking/privateEndpoint.bicep` | `modules/private_endpoint/` | Connects storage into the VNet |
 | Virtual Network + Subnet | `modules/networking/virtualNetwork.bicep` | `modules/networking/` | Hosts the private endpoint NIC |
-| Private DNS Zone | `modules/networking/virtualNetwork.bicep` | `modules/private_dns/` | Resolves storage FQDN to private IP |
+| Private DNS Zone | `modules/networking/privateDnsZone.bicep` | `modules/private_dns/` | Resolves storage FQDN to private IP |
 | Log Analytics Workspace | `modules/monitoring/logAnalyticsWorkspace.bicep` | `modules/monitoring/` | Centralised diagnostic logs and metrics |
 | Key Vault | `modules/security/keyVault.bicep` | `modules/security/` | Stores secrets and certificates; no public network access |
+| User Assigned Managed Identity | `modules/identity/userAssignedIdentity.bicep` | *(root module)* | Identity for AFD origin group authentication |
 
 ## Foundational Infrastructure
 
@@ -41,7 +42,7 @@ The following foundational resources are implemented in both `src/bicep/` and `s
 | Log Analytics Workspace | `modules/monitoring/logAnalyticsWorkspace.bicep` | `modules/monitoring/` | 30-day retention; receives diagnostic logs from all resources |
 | Key Vault | `modules/security/keyVault.bicep` | `modules/security/` | RBAC authorisation mode; public network access disabled; soft-delete and purge protection enabled |
 
-All modules use **Azure Verified Modules (AVM)** as the implementation foundation. Environment-specific values are supplied via `src/bicep/parameters/main.dev.bicepparam` (Bicep) and `src/terraform/terraform.tfvars` (Terraform).
+All modules use **Azure Verified Modules (AVM)** as the implementation foundation, with the exception of the Terraform Front Door module which uses native `azurerm_cdn_frontdoor_*` resources due to a [lifecycle issue](https://github.com/Azure/terraform-azurerm-avm-res-cdn-profile/issues) in the AVM CDN module that causes a destroy/recreate cycle on every apply. Environment-specific values are supplied via `src/bicep/parameters/main.dev.bicepparam` (Bicep) and `src/terraform/terraform.tfvars` (Terraform).
 
 ---
 
@@ -82,6 +83,103 @@ az storage account private-endpoint-connection approve \
 
 ---
 
+## AFD Health Probes
+
+Azure Front Door uses health probes to determine whether each origin in an origin group is available and healthy. Understanding how health probes work with private blob storage origins is critical to a successful deployment.
+
+### How Health Probes Work
+
+When enabled (`enableFrontDoorHealthProbe = true` in Bicep / `enable_front_door_health_probe = true` in Terraform), the AFD origin group is configured with a health probe that periodically sends an HTTPS `GET` request to:
+
+```
+/health/health.txt
+```
+
+The probe interval is **100 seconds** (Bicep) or **30 seconds** (Terraform). The origin group's load balancer evaluates health based on a sample of **4 probes**, requiring **3 successful responses** within a **50 ms additional-latency window** to consider the origin healthy.
+
+When the health probe is **disabled**, the origin group's health probe settings are omitted entirely (`healthProbeSettings: null` in Bicep, empty `health_probe {}` block in Terraform), and AFD assumes the origin is always healthy.
+
+### Why Anonymous Blob Access Is Required
+
+**Azure Front Door does not support Managed Identity authentication over Private Link connections for health probes.** Because the storage account has public network access disabled, the health probe traffic traverses the Private Link, where MI-based authentication is unavailable.
+
+To work around this limitation, the deployment:
+
+1. **Creates a `health` container** in the storage account with **anonymous blob-level read access** (`publicAccess: 'Blob'`). This container is only created when the health probe is enabled.
+2. **Sets `allowBlobPublicAccess: true`** (or `allow_nested_items_to_be_public = true` in Terraform) at the storage account level — but only when the health probe is enabled. This is required by Azure to permit anonymous access on individual containers.
+3. **Keeps the `upload` container fully private** — anonymous access is scoped to the `health` container only.
+
+After deployment, you must upload a small `health.txt` file to the `health` container so the probe has a resource to check:
+
+```bash
+echo "healthy" > /tmp/health.txt
+az storage blob upload \
+  --account-name <storage-account-name> \
+  --container-name health \
+  --name health.txt \
+  --file /tmp/health.txt \
+  --auth-mode login
+```
+
+> **Security note:** Only the `health` container is anonymously readable. The `upload` container — where actual content is stored — remains fully private and requires authentication for all operations. If you prefer not to allow any anonymous access, set `enableFrontDoorHealthProbe = false` and AFD will skip health checks entirely (treating the origin as always healthy).
+
+---
+
+## Uploading Content with azcopy
+
+Because the storage account has public network access disabled and shared-key access disabled, uploading content requires authentication via Microsoft Entra ID (Azure AD). The recommended approach for automation is to use **azcopy** with a **service principal**.
+
+### Prerequisites
+
+- [azcopy](https://learn.microsoft.com/azure/storage/common/storage-use-azcopy-v10) ≥ 10.x installed
+- A service principal (app registration) with the **Storage Blob Data Contributor** role assigned on the target storage account or the `upload` container
+- The service principal's tenant ID, application (client) ID, and client secret (or certificate)
+
+### Authenticate azcopy with a Service Principal
+
+Set the required environment variables before running azcopy:
+
+```bash
+export AZCOPY_SPA_CLIENT_SECRET="<service-principal-client-secret>"
+export AZCOPY_TENANT_ID="<azure-ad-tenant-id>"
+
+azcopy login --service-principal --application-id "<service-principal-app-id>"
+```
+
+### Upload Files
+
+When uploading to a storage account that is fronted by Azure Front Door with a custom domain, you must include two additional arguments:
+
+| Argument | Value | Why |
+|---|---|---|
+| `--from-to` | `LocalBlob` | Tells azcopy the transfer direction explicitly (local file system → Azure Blob Storage), which is required when the default endpoint detection may not work due to private networking. |
+| `--trusted-microsoft-suffixes` | Your AFD endpoint hostname or custom domain (e.g., `blob.christopher-house.com`) | Allows azcopy to trust the non-standard hostname for authentication token scoping. Without this flag, azcopy may refuse to send credentials to a hostname that doesn't match `*.blob.core.windows.net`. |
+
+**Upload a single file:**
+
+```bash
+azcopy copy "./my-file.txt" \
+  "https://<storage-account-name>.blob.core.windows.net/upload/my-file.txt" \
+  --from-to LocalBlob \
+  --trusted-microsoft-suffixes "<your-afd-or-custom-domain>"
+```
+
+**Upload an entire directory:**
+
+```bash
+azcopy copy "./my-folder" \
+  "https://<storage-account-name>.blob.core.windows.net/upload/" \
+  --from-to LocalBlob \
+  --trusted-microsoft-suffixes "<your-afd-or-custom-domain>" \
+  --recursive
+```
+
+> **Tip:** If your storage account is configured with a custom domain via Azure Front Door (e.g., `blob.christopher-house.com`), use that domain as the `--trusted-microsoft-suffixes` value. If you are only using the default `.azurefd.net` endpoint, use that hostname instead.
+
+> **Note:** Because `shared_access_key_enabled` is set to `false` on the storage account, SAS tokens and storage account keys cannot be used for authentication. Service principal or managed identity authentication via Microsoft Entra ID is the only supported method.
+
+---
+
 ## Repository Structure
 
 ```
@@ -100,6 +198,7 @@ az storage account private-endpoint-connection approve \
 │   ├── bicep/                   # Bicep modules + main deployment
 │   │   ├── modules/
 │   │   │   ├── frontDoor/       # AFD Premium profile + WAF policy (AVM)
+│   │   │   ├── identity/       # User Assigned Managed Identity + RBAC (AVM)
 │   │   │   ├── monitoring/      # Log Analytics Workspace (AVM)
 │   │   │   ├── networking/      # VNet + PE subnet (AVM)
 │   │   │   ├── security/        # Key Vault (AVM)
@@ -306,6 +405,7 @@ All workflow configuration is stored as **GitHub Variables** (not secrets), sinc
 |---|---|---|
 | `BICEP_RESOURCE_GROUP` | Resource group for the Bicep deployment | `rg-afdblobbic-dev-eus2` |
 | `TF_STATE_RESOURCE_GROUP` | Resource group holding TF state storage | `rg-tfstate-dev` |
+| `TF_RESOURCE_GROUP` | Pre-existing resource group for the Terraform deployment | `rg-afdblobtf-dev` |
 | `TF_STATE_STORAGE_ACCOUNT` | Storage account name for TF state | `stafdblobstateabc123` |
 | `TF_STATE_CONTAINER` | Blob container name for TF state files | `tfstate` |
 
@@ -329,6 +429,7 @@ gh variable set AZURE_LOCATION        --body "eastus"
 # Set dev environment variables
 gh variable set BICEP_RESOURCE_GROUP      --env dev --body "rg-afdblobbic-dev-eus2"
 gh variable set TF_STATE_RESOURCE_GROUP   --env dev --body "$TF_STATE_RG"
+gh variable set TF_RESOURCE_GROUP         --env dev --body "rg-afdblobtf-dev"
 gh variable set TF_STATE_STORAGE_ACCOUNT  --env dev --body "$TF_STATE_SA"
 gh variable set TF_STATE_CONTAINER        --env dev --body "$TF_STATE_CONTAINER"
 ```
