@@ -4,7 +4,7 @@
 # Triggers:
 #   • push to main  (src/** or .github/workflows/**)
 #   • pull_request  targeting main (src/** or .github/workflows/**)
-#   • workflow_dispatch (manual, optional environment input)
+#   • workflow_dispatch (manual; inputs: environment, deploy_target)
 #
 # Jobs:
 #   lint-bicep       — az bicep build (lint/validate)
@@ -63,6 +63,15 @@ on:
         type: choice
         options:
           - dev
+      deploy_target:
+        description: "IaC stack(s) to lint and deploy (bicep, terraform, or both)"
+        required: false
+        default: "both"
+        type: choice
+        options:
+          - both
+          - bicep
+          - terraform
 
 # ── Permissions ───────────────────────────────────────────────────────────────
 # id-token: write  — required to mint an OIDC token for Azure federated login
@@ -97,6 +106,7 @@ jobs:
   lint-bicep:
     name: "Lint — Bicep"
     runs-on: ubuntu-latest
+    if: contains(fromJSON('["both","bicep"]'), inputs.deploy_target || 'both')
 
     steps:
       # ── 1. Source code ──────────────────────────────────────────────────────
@@ -143,6 +153,7 @@ jobs:
   lint-terraform:
     name: "Lint — Terraform"
     runs-on: ubuntu-latest
+    if: contains(fromJSON('["both","terraform"]'), inputs.deploy_target || 'both')
 
     steps:
       # ── 1. Source code ──────────────────────────────────────────────────────
@@ -200,7 +211,7 @@ jobs:
     needs: lint-bicep
 
     # Skip on pull_request events — only deploy on push to main or manual trigger
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && contains(fromJSON('["both","bicep"]'), inputs.deploy_target || 'both')
 
     # Links to the "dev" GitHub environment for protection rules, required
     # reviewers, and environment-scoped variables.
@@ -298,7 +309,7 @@ jobs:
     needs: lint-terraform
 
     # Skip on pull_request events — only deploy on push to main or manual trigger
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && contains(fromJSON('["both","terraform"]'), inputs.deploy_target || 'both')
 
     # Links to the "dev" GitHub environment for protection rules and
     # environment-scoped variables (TF_STATE_*, BICEP_RESOURCE_GROUP, etc.)
