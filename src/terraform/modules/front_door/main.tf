@@ -86,8 +86,7 @@ resource "azurerm_cdn_frontdoor_custom_domain" "this" {
   host_name                = var.custom_domain_host_name
 
   tls {
-    certificate_type    = "ManagedCertificate"
-    minimum_tls_version = "TLS12"
+    certificate_type = "ManagedCertificate"
   }
 }
 
@@ -289,7 +288,7 @@ resource "azurerm_monitor_diagnostic_setting" "this" {
   }
 
   # Send all metrics to Log Analytics.
-  metric {
+  enabled_metric {
     category = "AllMetrics"
   }
 }
