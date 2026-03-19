@@ -221,12 +221,12 @@ module afdProfile 'br/public:avm/res/cdn/profile:0.11.0' = {
   }
 }
 
-// ── Origin Group Authentication ──────────────────────────────────────────────
-// NOTE: Origin group authentication via User Assigned Managed Identity was
-// previously deployed here, but AFD does not support MI authentication over
-// Private Link connections. Health probe authentication is now handled via
-// anonymous blob access on the 'health' container (controlled by the
-// enableFrontDoorHealthProbe parameter).
+// ── Origin Group Authentication (Removed) ────────────────────────────────────
+// Origin group authentication via User Assigned Managed Identity was previously
+// deployed here, but AFD does not support MI authentication over Private Link
+// connections. Health probe authentication is now handled via anonymous blob
+// access on the 'health' container (controlled by the enableFrontDoorHealthProbe
+// parameter).
 
 // ── Existing resource reference: AFD Endpoint hostname ────────────────────────
 // The AVM cdn/profile:0.8.0 module does not surface per-endpoint hostnames as

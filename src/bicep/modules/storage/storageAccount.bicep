@@ -74,7 +74,7 @@ var blobContainers = concat(
   ] : []
 )
 
-// Build the blobServices object: always include the two containers, and
+// Build the blobServices object: always include the containers array, and
 // conditionally add diagnosticSettings when a Log Analytics Workspace ID is
 // supplied. Using union() merges the base object (containers) with the optional
 // diagnostics object so that no empty/null diagnosticSettings key is written
