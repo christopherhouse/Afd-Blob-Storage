@@ -198,6 +198,7 @@ module frontDoor 'modules/frontDoor/frontDoor.bicep' = {
     storageAccountId: storage.outputs.storageAccountId
     wafPolicyId: wafPolicy.outputs.wafPolicyId
     customDomainHostName: afdCustomDomainHostName
+    logAnalyticsWorkspaceId: monitoring.outputs.workspaceId
     tags: commonTags
   }
 }

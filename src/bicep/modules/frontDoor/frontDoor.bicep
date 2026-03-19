@@ -1,5 +1,5 @@
 metadata name = 'Azure Front Door Premium Module'
-metadata description = 'Deploys an Azure Front Door Premium profile with a WAF security policy, a private-link origin pointing to an Azure Blob Storage account, and an AFD endpoint with route. Consumes AVM avm/res/cdn/profile:0.8.0.'
+metadata description = 'Deploys an Azure Front Door Premium profile with a WAF security policy, a private-link origin pointing to an Azure Blob Storage account, and an AFD endpoint with route. Consumes AVM avm/res/cdn/profile:0.11.0.'
 metadata owner = 'platform-team'
 
 targetScope = 'resourceGroup'
@@ -37,6 +37,9 @@ param tags object = {}
 
 @description('Custom domain hostname for the AFD endpoint (e.g. blob.example.com). Leave empty to use the default .azurefd.net domain only.')
 param customDomainHostName string = ''
+
+@description('Resource ID of the Log Analytics Workspace to send AFD diagnostic logs and metrics to. Leave empty to skip diagnostic settings.')
+param logAnalyticsWorkspaceId string = ''
 
 // ── Variables ─────────────────────────────────────────────────────────────────
 
@@ -76,10 +79,11 @@ var afdEndpointResourceId = resourceId(
 )
 
 // ── AVM: CDN / AFD Premium Profile ────────────────────────────────────────────
-// AVM module: br/public:avm/res/cdn/profile:0.8.0
+// AVM module: br/public:avm/res/cdn/profile:0.11.0
 // Registry:   https://github.com/Azure/bicep-registry-modules/tree/main/avm/res/cdn/profile
+// Upgraded from 0.8.0 → 0.11.0 to gain native diagnosticSettings parameter support.
 
-module afdProfile 'br/public:avm/res/cdn/profile:0.8.0' = {
+module afdProfile 'br/public:avm/res/cdn/profile:0.11.0' = {
   name: 'afdProfileDeployment'
   params: {
     name: afdProfileName
@@ -184,6 +188,29 @@ module afdProfile 'br/public:avm/res/cdn/profile:0.8.0' = {
               groupId: 'blob'
               requestMessage: 'Approved by Azure Front Door deployment'
             }
+          }
+        ]
+      }
+    ]
+
+    // ── Diagnostic Settings ──────────────────────────────────────────────────────
+    // Conditionally send all AFD logs and metrics to the Log Analytics Workspace
+    // when a workspace resource ID is provided; otherwise pass an empty array so
+    // the AVM module skips diagnostic settings entirely.
+    diagnosticSettings: empty(logAnalyticsWorkspaceId) ? [] : [
+      {
+        name: 'afd-diagnostics'
+        workspaceResourceId: logAnalyticsWorkspaceId
+        logCategoriesAndGroups: [
+          {
+            categoryGroup: 'allLogs'
+            enabled: true
+          }
+        ]
+        metricCategories: [
+          {
+            category: 'AllMetrics'
+            enabled: true
           }
         ]
       }
