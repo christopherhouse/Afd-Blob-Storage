@@ -20,6 +20,16 @@ output "resource_group_id" {
 # Networking
 # ---------------------------------------------------------------------------
 
+output "nsg_id" {
+  description = "Azure resource ID of the Network Security Group."
+  value       = module.nsg.nsg_id
+}
+
+output "nsg_name" {
+  description = "Name of the Network Security Group."
+  value       = module.nsg.nsg_name
+}
+
 output "vnet_id" {
   description = "Azure resource ID of the virtual network."
   value       = module.networking.vnet_id

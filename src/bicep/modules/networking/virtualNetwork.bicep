@@ -29,6 +29,9 @@ param vnetAddressPrefix string = '10.0.0.0/16'
 @description('Address prefix (CIDR) for the dedicated private-endpoint subnet.')
 param privateEndpointSubnetPrefix string = '10.0.1.0/24'
 
+@description('Resource ID of the Network Security Group to associate with the private-endpoint subnet. Required for zero-trust network policy enforcement.')
+param networkSecurityGroupResourceId string
+
 @description('Resource tags applied to every resource in this module.')
 param tags object = {}
 
@@ -54,11 +57,13 @@ module vnet 'br/public:avm/res/network/virtual-network:0.7.2' = {
     ]
     subnets: [
       {
-        // Private-endpoint subnet: network policies must be Disabled to allow
-        // private endpoint NIC placement per Microsoft guidance.
+        // Private-endpoint subnet: NSG is associated and network policies are
+        // set to NetworkSecurityGroupEnabled so NSG rules are enforced on
+        // private endpoint traffic (zero-trust posture).
         name: subnetName
         addressPrefix: privateEndpointSubnetPrefix
-        privateEndpointNetworkPolicies: 'Disabled'
+        privateEndpointNetworkPolicies: 'NetworkSecurityGroupEnabled'
+        networkSecurityGroupResourceId: networkSecurityGroupResourceId
       }
     ]
     tags: tags

@@ -55,3 +55,8 @@ variable "enable_telemetry" {
   description = "Enable Microsoft telemetry for the Azure Verified Module."
   default     = false
 }
+
+variable "network_security_group_id" {
+  type        = string
+  description = "Azure resource ID of the Network Security Group to associate with the private-endpoint subnet. Required for zero-trust network policy enforcement."
+}

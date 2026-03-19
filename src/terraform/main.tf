@@ -85,6 +85,7 @@ locals {
   names = {
     vnet                    = "vnet-${local.resource_prefix}"
     private_endpoint_subnet = "snet-pe-${local.resource_prefix}"
+    nsg                     = "nsg-pe-${local.resource_prefix}"
     storage_account         = local.storage_account_name
     log_analytics_workspace = "law-${local.resource_prefix}"
     key_vault               = local.key_vault_name
@@ -123,6 +124,23 @@ data "azurerm_resource_group" "this" {
 }
 
 ###############################################################################
+# NSG Module
+# Deploys a Network Security Group with zero-trust rules for the
+# private-endpoint subnet. Must be deployed before the VNet so its
+# resource ID can be associated with the subnet.
+###############################################################################
+
+module "nsg" {
+  source = "./modules/nsg"
+
+  resource_group_name = data.azurerm_resource_group.this.name
+  location            = data.azurerm_resource_group.this.location
+  name                = local.names.nsg
+  tags                = local.common_tags
+  enable_telemetry    = var.enable_telemetry
+}
+
+###############################################################################
 # Networking Module
 # Deploys the VNet and a dedicated subnet for private endpoints.
 ###############################################################################
@@ -136,6 +154,7 @@ module "networking" {
   subnet_name                    = local.names.private_endpoint_subnet
   address_space                  = var.address_space
   private_endpoint_subnet_prefix = var.private_endpoint_subnet_prefix
+  network_security_group_id      = module.nsg.nsg_id
   tags                           = local.common_tags
   enable_telemetry               = var.enable_telemetry
 }
