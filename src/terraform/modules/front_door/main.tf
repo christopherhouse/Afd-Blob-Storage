@@ -83,15 +83,17 @@ module "afd_profile" {
     "og" = {
       name = var.origin_group_name
 
-      # Health probe: HEAD request to "/" every 30 seconds over HTTPS.
-      # NOTE: Update the path to a dedicated health blob once content exists
-      # (e.g., /health-container/probe.txt) to get 200 OK responses.
+      # Health probe: GET /health/health.txt every 30 seconds over HTTPS.
+      # The health container is configured with blob-level anonymous read access,
+      # allowing the probe to receive a 200 OK without credentials through the
+      # Private Link connection.  Ensure health/health.txt exists in the
+      # storage account before expecting 200 responses.
       health_probe = {
         "hp" = {
           interval_in_seconds = 30
-          path                = "/"
+          path                = "/health/health.txt"
           protocol            = "Https"
-          request_type        = "HEAD"
+          request_type        = "GET"
         }
       }
 

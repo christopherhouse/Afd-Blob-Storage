@@ -1,5 +1,5 @@
 metadata name = 'Storage Account Module'
-metadata description = 'Deploys a hardened Storage Account with public access disabled, shared-key access disabled, and optional blob diagnostic settings. Consumes AVM avm/res/storage/storage-account:0.9.1.'
+metadata description = 'Deploys a hardened Storage Account with public network access disabled, shared-key access disabled, upload and health blob containers, and optional blob diagnostic settings. Consumes AVM avm/res/storage/storage-account:0.9.1.'
 metadata owner = 'platform-team'
 
 targetScope = 'resourceGroup'
@@ -51,12 +51,30 @@ param logAnalyticsWorkspaceId string = ''
 var rawStorageName     = toLower('st${workloadName}${environmentName}${locationShort}')
 var storageAccountName = take(rawStorageName, 24)
 
-// Build the blobServices object conditionally: include diagnosticSettings only when a
-// Log Analytics Workspace ID has been supplied. This avoids deploying an empty diagnostic
-// settings resource and keeps the module idempotent when monitoring is not yet available.
-// When logAnalyticsWorkspaceId is empty, {} is passed to AVM's optional blobServices
-// parameter, which is equivalent to omitting it (AVM default = no diagnostics configured).
-var blobServicesConfig = empty(logAnalyticsWorkspaceId) ? {} : {
+// Blob containers: 'upload' is private; 'health' allows anonymous blob reads
+// so that the Azure Front Door health probe can GET health/health.txt without
+// authentication through the Private Link connection.
+var blobContainers = [
+  {
+    name: 'upload'
+    // No public access — content is private and accessible via authenticated requests only.
+    publicAccess: 'None'
+  }
+  {
+    name: 'health'
+    // Blob-level anonymous read access: individual blobs are publicly readable but
+    // container enumeration is disabled.  Required for the AFD health probe to GET
+    // health/health.txt through the Private Link endpoint without credentials.
+    publicAccess: 'Blob'
+  }
+]
+
+// Build the blobServices object: always include the two containers, and
+// conditionally add diagnosticSettings when a Log Analytics Workspace ID is
+// supplied. Using union() merges the base object (containers) with the optional
+// diagnostics object so that no empty/null diagnosticSettings key is written
+// when monitoring is not yet configured.
+var blobServicesConfig = empty(logAnalyticsWorkspaceId) ? { containers: blobContainers } : union({ containers: blobContainers }, {
   diagnosticSettings: [
     {
       // Explicit name prevents ARM from generating a random GUID for the setting resource.
@@ -72,7 +90,7 @@ var blobServicesConfig = empty(logAnalyticsWorkspaceId) ? {} : {
       ]
     }
   ]
-}
+})
 
 // ── AVM: Storage Account ───────────────────────────────────────────────────────
 // AVM module: br/public:avm/res/storage/storage-account:0.9.1
@@ -92,8 +110,12 @@ module storageAccount 'br/public:avm/res/storage/storage-account:0.9.1' = {
     // Security: disable all public inbound traffic; access via private endpoint only.
     publicNetworkAccess: 'Disabled'
 
-    // Security: blobs must never be anonymously accessible.
-    allowBlobPublicAccess: false
+    // Security: allow blob-level anonymous access so that the 'health' container
+    // can serve health.txt to the Azure Front Door health probe without credentials.
+    // Anonymous access is restricted to the 'health' container (publicAccess: 'Blob');
+    // all other containers remain private.  Public network access is still disabled,
+    // so this only applies to traffic arriving via private endpoint (AFD Private Link).
+    allowBlobPublicAccess: true
 
     // Security: block all network access by default; allow only from trusted Azure services.
     networkAcls: {
