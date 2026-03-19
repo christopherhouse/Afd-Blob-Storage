@@ -258,7 +258,6 @@ module "front_door" {
   log_analytics_workspace_id     = module.monitoring.workspace_resource_id
   enable_front_door_health_probe = var.enable_front_door_health_probe
   tags                           = local.common_tags
-  enable_telemetry               = var.enable_telemetry
 
   # Ensure the storage account is fully configured before AFD attempts to
   # establish the Private Link connection.

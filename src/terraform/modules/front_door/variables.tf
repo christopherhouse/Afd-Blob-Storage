@@ -80,19 +80,13 @@ variable "waf_mode" {
 }
 
 # ---------------------------------------------------------------------------
-# Tagging & Module Behaviour
+# Tagging
 # ---------------------------------------------------------------------------
 
 variable "tags" {
   type        = map(string)
   description = "Tags to apply to all resources created by this module."
   default     = {}
-}
-
-variable "enable_telemetry" {
-  type        = bool
-  description = "Enable Microsoft telemetry for the Azure Verified Module. Set to false in air-gapped or regulated environments."
-  default     = false
 }
 
 variable "custom_domain_host_name" {
