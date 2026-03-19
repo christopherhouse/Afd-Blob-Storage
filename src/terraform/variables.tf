@@ -172,3 +172,9 @@ variable "afd_custom_domain_host_name" {
   description = "Custom domain hostname for the Terraform AFD endpoint (e.g. storage.christopher-house.com). Leave empty to use only the default .azurefd.net domain."
   default     = ""
 }
+
+variable "enable_front_door_health_probe" {
+  type        = bool
+  description = "When true, creates a 'health' blob container with anonymous read access and configures the AFD origin group health probe to GET /health/health.txt. AFD does not support Managed Identity authentication over Private Link, so anonymous blob access is required for health probes."
+  default     = true
+}

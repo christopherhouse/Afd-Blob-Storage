@@ -111,7 +111,8 @@ variable "log_analytics_workspace_id" {
   default     = ""
 }
 
-variable "user_assigned_identity_id" {
-  type        = string
-  description = "Resource ID of the User Assigned Managed Identity to attach to the AFD profile for origin authentication."
+variable "enable_front_door_health_probe" {
+  type        = bool
+  description = "When true, configures the AFD origin group health probe to GET /health/health.txt. When false, uses a basic HEAD / probe. AFD does not support MI auth over Private Link, so health probes rely on anonymous blob access when enabled."
+  default     = true
 }
