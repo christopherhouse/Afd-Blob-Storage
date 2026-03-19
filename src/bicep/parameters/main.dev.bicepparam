@@ -43,3 +43,9 @@ param kvSoftDeleteRetentionInDays = 7
 param afdWafMode = 'Prevention'
 
 param afdCustomDomainHostName = 'blob.christopher-house.com'
+
+// ── Tags ─────────────────────────────────────────────────────────────────────
+
+param tags = {
+  SecurityControl: 'Ignore'
+}

@@ -54,6 +54,10 @@ kv_soft_delete_retention_days = 7
 # ---------------------------------------------------------------------------
 owner_tag = "platform-team"
 
+tags = {
+  SecurityControl = "Ignore"
+}
+
 # ---------------------------------------------------------------------------
 # Module Behaviour
 # Disable AVM telemetry in dev; enable in prod for Microsoft support insights.
