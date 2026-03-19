@@ -59,16 +59,19 @@ param afdWafMode string = 'Prevention'
 @description('Custom domain hostname for the AFD endpoint (e.g. blob.example.com). Leave empty to use the default .azurefd.net domain only.')
 param afdCustomDomainHostName string = ''
 
+@description('Additional resource tags to merge with the standard deployment tags. Use this to supply workload-specific tags (e.g. cost centre, security controls).')
+param tags object = {}
+
 // ── Variables ─────────────────────────────────────────────────────────────────
 
 // Common tags applied to every resource in this deployment.
 // Extend this object or pass additional tags via parameters as needed.
-var commonTags = {
+var commonTags = union(tags, {
   workload: workloadName
   environment: environmentName
   deployedBy: 'bicep'
   costCenter: workloadName
-}
+})
 
 // ── Module: Virtual Network ────────────────────────────────────────────────────
 

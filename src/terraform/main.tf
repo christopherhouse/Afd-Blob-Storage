@@ -101,14 +101,16 @@ locals {
   }
 
   # Tags applied to every resource.
-  common_tags = {
+  # Infrastructure-managed keys are in the second argument to merge(), ensuring
+  # they take precedence over any matching keys supplied via var.tags.
+  common_tags = merge(var.tags, {
     environment = var.environment_name
     workload    = var.workload_name
     location    = var.location
     managed_by  = "terraform"
     repository  = "Afd-Blob-Storage"
     owner       = var.owner_tag
-  }
+  })
 }
 
 ###############################################################################

@@ -136,6 +136,12 @@ variable "owner_tag" {
   default     = "platform-team"
 }
 
+variable "tags" {
+  type        = map(string)
+  description = "Additional resource tags to merge with the standard deployment tags. Infrastructure-managed tags (environment, workload, managed_by, etc.) take precedence over keys supplied here."
+  default     = {}
+}
+
 # ---------------------------------------------------------------------------
 # Module Behaviour
 # ---------------------------------------------------------------------------
