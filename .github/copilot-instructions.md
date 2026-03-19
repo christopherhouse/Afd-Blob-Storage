@@ -159,9 +159,6 @@ GitHub Actions Agent
     │
     ▼  (5) Document
 Documentation Agent
-    │
-    ▼  (6) After debugging sessions
-Knowledge Reuse Agent ← capture learnings, update Debugger Agent
 ```
 
 ### Agent Roster
@@ -174,7 +171,6 @@ Knowledge Reuse Agent ← capture learnings, update Debugger Agent
 | `terraform.md` | Terraform HCL authoring, AzureRM provider, state | Writing or reviewing any file under `src/terraform/` |
 | `github-actions.md` | CI/CD workflows, OIDC auth, environment protection | Writing or reviewing files under `.github/workflows/` |
 | `documentation.md` | README files, Mermaid diagrams, parameter tables | Creating or updating any documentation |
-| `knowledge-reuse.md` | Debugger feedback loop, knowledge curation, 30K budget | After debugging sessions — captures learnings and updates the Debugger Agent |
 
 ### Recommended Workflow
 
@@ -183,7 +179,6 @@ Knowledge Reuse Agent ← capture learnings, update Debugger Agent
 3. **Bicep Agent and/or Terraform Agent** – Implement the agreed design in IaC.
 4. **GitHub Actions Agent** – Add or update CI/CD workflows to lint, validate, and deploy the new IaC.
 5. **Documentation Agent** – Update README files, architecture diagrams, and parameter tables to reflect the changes.
-6. **Knowledge Reuse Agent** – After debugging sessions, capture learnings and update the Debugger Agent's instructions.
 
 > You do not need to engage every agent for every task. For a small change (e.g., adjusting a WAF rule), skip directly to the Azure Agent and the relevant IaC agent. Use the Planning Agent any time scope or sequencing is unclear.
 
