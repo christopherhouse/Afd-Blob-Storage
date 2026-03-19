@@ -283,7 +283,8 @@ resource "azapi_update_resource" "origin_group_auth" {
   body = {
     properties = {
       authentication = {
-        type = "UserAssignedIdentity"
+        type  = "UserAssignedIdentity"
+        scope = "https://storage.azure.com/.default"
         userAssignedIdentity = {
           id = var.user_assigned_identity_id
         }

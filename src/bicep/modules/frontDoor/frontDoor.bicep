@@ -257,6 +257,7 @@ resource originGroupAuth 'Microsoft.Cdn/profiles/originGroups@2025-06-01' = {
     }
     authentication: {
       type: 'UserAssignedIdentity'
+      scope: 'https://storage.azure.com/.default'
       userAssignedIdentity: {
         id: userAssignedIdentityId
       }
