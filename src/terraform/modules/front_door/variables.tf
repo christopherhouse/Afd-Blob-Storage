@@ -110,3 +110,8 @@ variable "log_analytics_workspace_id" {
   description = "Resource ID of the Log Analytics Workspace for AFD diagnostic settings. Leave empty to skip diagnostics."
   default     = ""
 }
+
+variable "user_assigned_identity_id" {
+  type        = string
+  description = "Resource ID of the User Assigned Managed Identity to attach to the AFD profile for origin authentication."
+}

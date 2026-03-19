@@ -4,7 +4,7 @@
 # Deploys an Azure Storage Account configured for maximum security:
 #   - Public network access disabled
 #   - Shared-key (SAS) access disabled; Azure AD authentication only
-#   - Blob-level anonymous access enabled for the 'health' container only
+#   - Anonymous access allowed at account level but disabled on all containers
 #   - TLS 1.2 minimum; HTTPS-only traffic
 #   - Network rules default-deny with no bypass (fully private)
 #
@@ -38,12 +38,10 @@ module "storage_account" {
   # Disable shared-key / SAS authentication; enforce Azure AD-only access.
   shared_access_key_enabled = false
 
-  # Allow blob-level anonymous access so that the 'health' container can serve
-  # health.txt to the Azure Front Door health probe without credentials.
-  # Anonymous access is restricted to the 'health' container via its
-  # container_access_type = "blob" setting; the 'upload' container remains private.
-  # Public network access is still disabled, so this only applies to traffic
-  # arriving via the Private Link endpoint.
+  # Allow blob-level anonymous access at the account level.
+  # Individual container access is set to 'private' for all containers; the AFD
+  # health probe authenticates via a User Assigned Managed Identity with
+  # Storage Blob Data Reader role instead of anonymous access.
   allow_nested_items_to_be_public = true
 
   # --- Security: Encryption in Transit ---
@@ -60,11 +58,9 @@ module "storage_account" {
 
   # --- Blob Containers ---
   # 'upload'  : private — content is accessible via authenticated requests only.
-  # 'health'  : blob-level anonymous read access so that the Azure Front Door
-  #             health probe can GET health/health.txt through the Private Link
-  #             endpoint without credentials.
-  # The map key is used as the resource identifier; the name field sets the
-  # actual container name in the storage account.
+  # 'health'  : private — the AFD health probe authenticates via a User Assigned
+  #             Managed Identity (Storage Blob Data Reader) instead of anonymous
+  #             blob-level access.
   containers = {
     upload = {
       name                  = "upload"
@@ -72,7 +68,7 @@ module "storage_account" {
     }
     health = {
       name                  = "health"
-      container_access_type = "blob"
+      container_access_type = "private"
     }
   }
 

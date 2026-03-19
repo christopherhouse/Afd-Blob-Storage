@@ -41,6 +41,9 @@ param customDomainHostName string = ''
 @description('Resource ID of the Log Analytics Workspace to send AFD diagnostic logs and metrics to. Leave empty to skip diagnostic settings.')
 param logAnalyticsWorkspaceId string = ''
 
+@description('Resource ID of the User Assigned Managed Identity to attach to the AFD profile for origin authentication.')
+param userAssignedIdentityId string
+
 // ── Variables ─────────────────────────────────────────────────────────────────
 
 var resourcePrefix = '${workloadName}-${environmentName}'
@@ -134,10 +137,10 @@ module afdProfile 'br/public:avm/res/cdn/profile:0.11.0' = {
       {
         name: originGroupName
         // Health probe: GET requests to the dedicated health blob every 100 seconds.
-        // The health container is configured with blob-level anonymous read access,
-        // allowing the probe to receive a 200 OK without credentials through the
-        // Private Link connection.  Ensure health/health.txt exists in the
-        // storage account before expecting 200 responses.
+        // The health container requires authentication; the AFD profile uses a User
+        // Assigned Managed Identity with Storage Blob Data Reader role to authenticate
+        // the probe via the origin group authentication configuration (deployed as a
+        // separate resource below).
         healthProbeSettings: {
           probeIntervalInSeconds: 100
           probePath: '/health/health.txt'
@@ -216,8 +219,52 @@ module afdProfile 'br/public:avm/res/cdn/profile:0.11.0' = {
       }
     ]
 
+    // ── Managed Identities ──────────────────────────────────────────────────────
+    // Attach the User Assigned Managed Identity to the AFD profile so it can
+    // authenticate to origins (e.g. the storage account health container) using
+    // Entra ID tokens.
+    managedIdentities: {
+      userAssignedResourceIds: [
+        userAssignedIdentityId
+      ]
+    }
+
     tags: tags
   }
+}
+
+// ── Origin Group Authentication ──────────────────────────────────────────────
+// Deploys the origin group authentication configuration as a separate resource
+// because the AVM cdn/profile:0.11.0 module does not yet expose the
+// authentication property on origin groups. This uses the 2025-06-01 API
+// version which introduced the authentication block on origin groups.
+// The PUT re-specifies healthProbeSettings and loadBalancingSettings to
+// preserve the origin group configuration set by the AVM module.
+resource originGroupAuth 'Microsoft.Cdn/profiles/originGroups@2025-06-01' = {
+  parent: afdProfileRef
+  name: originGroupName
+  properties: {
+    healthProbeSettings: {
+      probeIntervalInSeconds: 100
+      probePath: '/health/health.txt'
+      probeProtocol: 'Https'
+      probeRequestType: 'GET'
+    }
+    loadBalancingSettings: {
+      additionalLatencyInMilliseconds: 50
+      sampleSize: 4
+      successfulSamplesRequired: 3
+    }
+    authentication: {
+      type: 'UserAssignedIdentity'
+      userAssignedIdentity: {
+        id: userAssignedIdentityId
+      }
+    }
+  }
+  dependsOn: [
+    afdProfile
+  ]
 }
 
 // ── Existing resource reference: AFD Endpoint hostname ────────────────────────

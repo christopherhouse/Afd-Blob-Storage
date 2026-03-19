@@ -51,9 +51,10 @@ param logAnalyticsWorkspaceId string = ''
 var rawStorageName     = toLower('st${workloadName}${environmentName}${locationShort}')
 var storageAccountName = take(rawStorageName, 24)
 
-// Blob containers: 'upload' is private; 'health' allows anonymous blob reads
-// so that the Azure Front Door health probe can GET health/health.txt without
-// authentication through the Private Link connection.
+// Blob containers: both 'upload' and 'health' are private.
+// The AFD health probe authenticates to the 'health' container using a User
+// Assigned Managed Identity with the Storage Blob Data Reader role instead of
+// relying on anonymous blob-level access.
 var blobContainers = [
   {
     name: 'upload'
@@ -62,10 +63,9 @@ var blobContainers = [
   }
   {
     name: 'health'
-    // Blob-level anonymous read access: individual blobs are publicly readable but
-    // container enumeration is disabled.  Required for the AFD health probe to GET
-    // health/health.txt through the Private Link endpoint without credentials.
-    publicAccess: 'Blob'
+    // No public access — the AFD health probe authenticates via a User Assigned
+    // Managed Identity (Storage Blob Data Reader) instead of anonymous access.
+    publicAccess: 'None'
   }
 ]
 
@@ -110,11 +110,10 @@ module storageAccount 'br/public:avm/res/storage/storage-account:0.9.1' = {
     // Security: disable all public inbound traffic; access via private endpoint only.
     publicNetworkAccess: 'Disabled'
 
-    // Security: allow blob-level anonymous access so that the 'health' container
-    // can serve health.txt to the Azure Front Door health probe without credentials.
-    // Anonymous access is restricted to the 'health' container (publicAccess: 'Blob');
-    // all other containers remain private.  Public network access is still disabled,
-    // so this only applies to traffic arriving via private endpoint (AFD Private Link).
+    // Security: allow blob-level anonymous access at the account level.
+    // Individual container access is set to 'None' for all containers; the AFD
+    // health probe authenticates via a User Assigned Managed Identity with
+    // Storage Blob Data Reader role instead of anonymous access.
     allowBlobPublicAccess: true
 
     // Security: block all network access by default; allow only from trusted Azure services.

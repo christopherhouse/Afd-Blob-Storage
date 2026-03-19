@@ -79,15 +79,19 @@ module "afd_profile" {
   # Groups origins for health monitoring and load-balancing decisions.
   # HTTPS health probes run from AFD PoPs to the storage blob service
   # through the private link connection once it has been approved.
+  # The health container requires authentication; the AFD profile uses a User
+  # Assigned Managed Identity with Storage Blob Data Reader role to authenticate
+  # the probe via the origin group authentication configuration (deployed as a
+  # separate azapi_update_resource below).
   front_door_origin_groups = {
     "og" = {
       name = var.origin_group_name
 
       # Health probe: GET /health/health.txt every 30 seconds over HTTPS.
-      # The health container is configured with blob-level anonymous read access,
-      # allowing the probe to receive a 200 OK without credentials through the
-      # Private Link connection.  Ensure health/health.txt exists in the
-      # storage account before expecting 200 responses.
+      # The health container requires authentication; the AFD profile uses a User
+      # Assigned Managed Identity with Storage Blob Data Reader role to authenticate
+      # the probe.  Ensure health/health.txt exists in the storage account before
+      # expecting 200 responses.
       health_probe = {
         "hp" = {
           interval_in_seconds = 30
@@ -249,4 +253,43 @@ module "afd_profile" {
   # --- Telemetry & Tags ---
   enable_telemetry = var.enable_telemetry
   tags             = var.tags
+
+  # --- Managed Identities ---
+  # Attach the User Assigned Managed Identity to the AFD profile so it can
+  # authenticate to origins (e.g. the storage account health container) using
+  # Entra ID tokens.
+  managed_identities = {
+    user_assigned_resource_ids = [var.user_assigned_identity_id]
+  }
+}
+
+###############################################################################
+# Origin Group Authentication (azapi_update_resource)
+#
+# The azurerm provider and the AVM CDN module do not yet support the
+# 'authentication' property on origin groups (introduced in the
+# Microsoft.Cdn API version 2025-06-01). We use azapi_update_resource to
+# PATCH the origin group with the authentication block after the AVM module
+# creates it.
+#
+# NOTE: azapi is used as a last resort here because neither the AVM module
+# nor the azurerm resource supports origin group authentication natively.
+###############################################################################
+
+resource "azapi_update_resource" "origin_group_auth" {
+  type        = "Microsoft.Cdn/profiles/originGroups@2025-06-01"
+  resource_id = module.afd_profile.frontdoor_origin_groups["og"].id
+
+  body = {
+    properties = {
+      authentication = {
+        type = "UserAssignedIdentity"
+        userAssignedIdentity = {
+          id = var.user_assigned_identity_id
+        }
+      }
+    }
+  }
+
+  depends_on = [module.afd_profile]
 }

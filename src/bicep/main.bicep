@@ -182,10 +182,40 @@ module wafPolicy 'modules/frontDoor/wafPolicy.bicep' = {
   }
 }
 
+// ── Module: User Assigned Managed Identity ────────────────────────────────────
+// Deploys a UAMI that will be attached to the Azure Front Door profile to
+// authenticate origin requests (health probes) to the storage account's health
+// container using Entra ID instead of anonymous access.
+
+module identity 'modules/identity/userAssignedIdentity.bicep' = {
+  name: 'identityDeployment-${deployment().name}'
+  params: {
+    location: location
+    workloadName: workloadName
+    environmentName: environmentName
+    locationShort: locationShort
+    tags: commonTags
+  }
+}
+
+// ── Module: Storage Blob Data Reader Role Assignment ──────────────────────────
+// Grants the User Assigned Managed Identity the Storage Blob Data Reader role on
+// the storage account so that the AFD health probe can read health/health.txt
+// through the origin group authentication mechanism.
+
+module storageBlobDataReaderRole 'modules/identity/storageBlobDataReaderRoleAssignment.bicep' = {
+  name: 'storageBlobDataReaderRoleDeployment-${deployment().name}'
+  params: {
+    storageAccountName: storage.outputs.storageAccountName
+    principalId: identity.outputs.userAssignedIdentityPrincipalId
+  }
+}
+
 // ── Module: Azure Front Door Premium ──────────────────────────────────────────
 // Deploys the AFD Premium profile, endpoint, blob origin group (via Private Link),
 // route, and security policy linking the WAF policy to the endpoint.
-// Depends on: storage (for storageAccountId/Name) and wafPolicy (for wafPolicyId).
+// Depends on: storage (for storageAccountId/Name), wafPolicy (for wafPolicyId),
+// and identity (for UAMI to authenticate origin requests).
 
 module frontDoor 'modules/frontDoor/frontDoor.bicep' = {
   name: 'frontDoorDeployment-${deployment().name}'
@@ -199,6 +229,7 @@ module frontDoor 'modules/frontDoor/frontDoor.bicep' = {
     wafPolicyId: wafPolicy.outputs.wafPolicyId
     customDomainHostName: afdCustomDomainHostName
     logAnalyticsWorkspaceId: monitoring.outputs.workspaceId
+    userAssignedIdentityId: identity.outputs.userAssignedIdentityId
     tags: commonTags
   }
 }
@@ -276,3 +307,13 @@ output frontDoorEndpointHostName string = frontDoor.outputs.frontDoorEndpointHos
 
 @description('Custom domain hostname configured for the AFD endpoint.')
 output frontDoorCustomDomainHostName string = frontDoor.outputs.customDomainHostName
+
+// Identity
+@description('Resource ID of the User Assigned Managed Identity attached to AFD.')
+output userAssignedIdentityId string = identity.outputs.userAssignedIdentityId
+
+@description('Name of the User Assigned Managed Identity.')
+output userAssignedIdentityName string = identity.outputs.userAssignedIdentityName
+
+@description('Principal (object) ID of the User Assigned Managed Identity.')
+output userAssignedIdentityPrincipalId string = identity.outputs.userAssignedIdentityPrincipalId
