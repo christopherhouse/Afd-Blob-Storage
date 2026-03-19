@@ -62,7 +62,7 @@ param afdCustomDomainHostName string = ''
 @description('Additional resource tags to merge with the standard deployment tags. Use this to supply workload-specific tags (e.g. cost centre, security controls).')
 param tags object = {}
 
-@description('When true, creates a "health" blob container with anonymous read access and configures the AFD origin group health probe to GET /health/health.txt. AFD does not support Managed Identity authentication over Private Link, so anonymous blob access is required for health probes.')
+@description('When true, creates a "health" blob container with anonymous read access and configures the AFD origin group health probe to GET /health/health.txt. When false, the health probe is disabled entirely and no health container is created. AFD does not support Managed Identity authentication over Private Link, so anonymous blob access is required for health probes.')
 param enableFrontDoorHealthProbe bool = true
 
 // ── Variables ─────────────────────────────────────────────────────────────────

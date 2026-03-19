@@ -113,6 +113,6 @@ variable "log_analytics_workspace_id" {
 
 variable "enable_front_door_health_probe" {
   type        = bool
-  description = "When true, configures the AFD origin group health probe to GET /health/health.txt. When false, uses a basic HEAD / probe. AFD does not support MI auth over Private Link, so health probes rely on anonymous blob access when enabled."
+  description = "When true, configures the AFD origin group health probe to GET /health/health.txt. When false, the health probe is disabled entirely for the origin group. AFD does not support MI auth over Private Link, so health probes rely on anonymous blob access when enabled."
   default     = true
 }
