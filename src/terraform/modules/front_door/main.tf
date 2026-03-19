@@ -80,21 +80,21 @@ module "afd_profile" {
   # HTTPS health probes run from AFD PoPs to the storage blob service
   # through the private link connection once it has been approved.
   # When enable_front_door_health_probe is true, probes GET /health/health.txt
-  # from an anonymously readable blob container. When false, HEAD / is used
-  # as a basic connectivity check.
+  # from an anonymously readable blob container. When false, the health probe
+  # is disabled entirely for the origin group.
   front_door_origin_groups = {
     "og" = {
       name = var.origin_group_name
 
-      # Health probe: conditionally GET /health/health.txt or HEAD /
-      health_probe = {
+      # Health probe: GET /health/health.txt when enabled, disabled when false
+      health_probe = var.enable_front_door_health_probe ? {
         "hp" = {
           interval_in_seconds = 30
-          path                = var.enable_front_door_health_probe ? "/health/health.txt" : "/"
+          path                = "/health/health.txt"
           protocol            = "Https"
-          request_type        = var.enable_front_door_health_probe ? "GET" : "HEAD"
+          request_type        = "GET"
         }
-      }
+      } : {}
 
       # Load balancing: spread traffic across origins within the group using
       # a 50 ms latency window and requiring 3 of 4 recent samples to pass.
