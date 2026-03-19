@@ -42,14 +42,6 @@ law_sku            = "PerGB2018"
 law_retention_days = 30
 
 # ---------------------------------------------------------------------------
-# Key Vault
-# Use minimum soft-delete retention (7 days) for dev iteration speed.
-# Increase to 90 days for staging/prod.
-# ---------------------------------------------------------------------------
-kv_sku_name                   = "standard"
-kv_soft_delete_retention_days = 7
-
-# ---------------------------------------------------------------------------
 # Tagging
 # ---------------------------------------------------------------------------
 owner_tag = "platform-team"

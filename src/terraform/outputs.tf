@@ -81,20 +81,6 @@ output "log_analytics_workspace_id" {
 }
 
 # ---------------------------------------------------------------------------
-# Key Vault
-# ---------------------------------------------------------------------------
-
-output "key_vault_id" {
-  description = "Azure resource ID of the Key Vault."
-  value       = module.security.key_vault_id
-}
-
-output "key_vault_uri" {
-  description = "URI of the Key Vault (e.g. https://<name>.vault.azure.net/)."
-  value       = module.security.key_vault_uri
-}
-
-# ---------------------------------------------------------------------------
 # Private DNS Zone
 # ---------------------------------------------------------------------------
 

@@ -96,32 +96,6 @@ variable "law_retention_days" {
 }
 
 # ---------------------------------------------------------------------------
-# Key Vault
-# ---------------------------------------------------------------------------
-
-variable "kv_sku_name" {
-  type        = string
-  description = "Key Vault SKU: 'standard' (software-protected) or 'premium' (HSM-backed keys)."
-  default     = "standard"
-
-  validation {
-    condition     = contains(["standard", "premium"], var.kv_sku_name)
-    error_message = "kv_sku_name must be either 'standard' or 'premium'."
-  }
-}
-
-variable "kv_soft_delete_retention_days" {
-  type        = number
-  description = "Number of days Key Vault items are retained after soft-deletion (7-90). Once purge protection is enabled this cannot be reduced."
-  default     = 90
-
-  validation {
-    condition     = var.kv_soft_delete_retention_days >= 7 && var.kv_soft_delete_retention_days <= 90
-    error_message = "kv_soft_delete_retention_days must be between 7 and 90."
-  }
-}
-
-# ---------------------------------------------------------------------------
 # Tagging
 # ---------------------------------------------------------------------------
 

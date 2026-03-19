@@ -8,7 +8,6 @@ These scripts automate the process of:
 1. Requesting a new certificate from Let's Encrypt
 2. Performing DNS-01 validation using Cloudflare DNS
 3. Converting the certificate to a password-protected PFX file
-4. Optionally importing the certificate to Azure Key Vault
 
 ## Prerequisites
 
@@ -34,9 +33,6 @@ These scripts automate the process of:
   - A domain managed by Cloudflare DNS
   - API token with DNS edit permissions
   - Zone read permissions
-
-- **Azure CLI** (optional, for Key Vault import):
-  - `az` CLI tool installed and authenticated
 
 ## Quick Start
 
@@ -137,30 +133,6 @@ Both scripts produce the following outputs:
 3. **Console Output:**
    - Step-by-step progress
    - Validation results
-   - Import command for Azure Key Vault
-
-## Importing to Azure Key Vault
-
-After obtaining the PFX file, import it to Azure Key Vault:
-
-```bash
-# Using Azure CLI
-az keyvault certificate import \
-  --vault-name <key-vault-name> \
-  --name <certificate-name> \
-  --file ./certificates/<certificate-name>.pfx \
-  --password '<pfx-password>'
-```
-
-```powershell
-# Using PowerShell
-$password = ConvertTo-SecureString "<pfx-password>" -AsPlainText -Force
-Import-AzKeyVaultCertificate `
-  -VaultName "<key-vault-name>" `
-  -Name "<certificate-name>" `
-  -FilePath "./certificates/<certificate-name>.pfx" `
-  -Password $password
-```
 
 ## Certificate Lifecycle
 
@@ -187,9 +159,7 @@ Set up a cron job (Linux/macOS) or scheduled task (Windows) to automate renewal:
 **Linux cron example:**
 ```bash
 # Run every 60 days at 3 AM
-0 3 */60 * * /path/to/request-acme-cert.sh "example.com" "$CLOUDFLARE_TOKEN" && \
-  az keyvault certificate import --vault-name my-vault --name example-com \
-    --file /path/to/certificates/example.com.pfx --password "$PFX_PASSWORD"
+0 3 */60 * * /path/to/request-acme-cert.sh "example.com" "$CLOUDFLARE_TOKEN"
 ```
 
 **PowerShell scheduled task example:**
@@ -281,7 +251,7 @@ set -x
    - Add `*.pfx` and `*.key` to `.gitignore`
 
 2. **Protect PFX passwords**
-   - Store passwords in Azure Key Vault or similar
+   - Store passwords in a secure secrets manager
    - Use auto-generated passwords when possible
    - Rotate passwords regularly
 
@@ -292,8 +262,7 @@ set -x
 
 4. **Secure certificate storage**
    - Store PFX files in encrypted storage
-   - Use Azure Key Vault for production certificates
-   - Delete local PFX files after importing to Key Vault
+   - Delete local PFX files after importing to your certificate store
 
 5. **Use staging for testing**
    - Test certificate requests with Let's Encrypt staging server
@@ -303,25 +272,10 @@ set -x
 
 After obtaining the certificate, configure it for Azure Front Door:
 
-1. **Import to Key Vault** (see above)
-2. **Grant Front Door access to Key Vault:**
-   ```bash
-   # Get the Front Door resource principal ID
-   AFD_PRINCIPAL_ID=$(az afd profile show \
-     --profile-name <afd-profile-name> \
-     --resource-group <resource-group> \
-     --query identity.principalId -o tsv)
-
-   # Grant certificate permissions
-   az keyvault set-policy \
-     --name <key-vault-name> \
-     --object-id $AFD_PRINCIPAL_ID \
-     --certificate-permissions get list
-   ```
-
-3. **Configure custom domain in Front Door:**
+1. **Import the certificate to your certificate store**
+2. **Configure custom domain in Front Door:**
    - Add custom domain to AFD endpoint
-   - Select certificate from Key Vault
+   - Select certificate source
    - Validate domain ownership
    - Update DNS records
 
@@ -332,7 +286,6 @@ After obtaining the certificate, configure it for Azure Front Door:
 - [Posh-ACME Documentation](https://poshac.me/)
 - [Cloudflare API Documentation](https://developers.cloudflare.com/api/)
 - [Azure Front Door Custom Domains](https://learn.microsoft.com/azure/frontdoor/front-door-custom-domain)
-- [Azure Key Vault Certificates](https://learn.microsoft.com/azure/key-vault/certificates/)
 
 ## Contributing
 

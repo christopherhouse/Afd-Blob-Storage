@@ -1,5 +1,5 @@
 metadata name = 'Afd-Blob-Storage — Foundational Infrastructure'
-metadata description = 'Entry-point template that orchestrates VNet, Storage Account, Log Analytics Workspace, and Key Vault modules for the Afd-Blob-Storage workload.'
+metadata description = 'Entry-point template that orchestrates VNet, Storage Account, Log Analytics Workspace, and Front Door modules for the Afd-Blob-Storage workload.'
 metadata owner = 'platform-team'
 
 targetScope = 'resourceGroup'
@@ -46,11 +46,6 @@ param storageSkuName string = 'Standard_LRS'
 @minValue(30)
 @maxValue(730)
 param logRetentionInDays int = 30
-
-@description('Soft-delete retention period (days) for Key Vault objects (7–90).')
-@minValue(7)
-@maxValue(90)
-param kvSoftDeleteRetentionInDays int = 90
 
 @description('Azure Front Door WAF policy enforcement mode. Prevention blocks matched requests; Detection only logs them. Use Detection for initial rollout validation.')
 @allowed(['Detection', 'Prevention'])
@@ -108,7 +103,7 @@ module networking 'modules/networking/virtualNetwork.bicep' = {
 }
 
 // ── Module: Log Analytics Workspace ───────────────────────────────────────────
-// Deployed before storage and key vault so their diagnostic settings can
+// Deployed before storage so its diagnostic settings can
 // reference the workspace resource ID.
 
 module monitoring 'modules/monitoring/logAnalyticsWorkspace.bicep' = {
@@ -135,20 +130,6 @@ module storage 'modules/storage/storageAccount.bicep' = {
     skuName: storageSkuName
     logAnalyticsWorkspaceId: monitoring.outputs.workspaceId
     enableFrontDoorHealthProbe: enableFrontDoorHealthProbe
-    tags: commonTags
-  }
-}
-
-// ── Module: Key Vault ──────────────────────────────────────────────────────────
-
-module security 'modules/security/keyVault.bicep' = {
-  name: 'securityDeployment-${deployment().name}'
-  params: {
-    location: location
-    workloadName: workloadName
-    environmentName: environmentName
-    locationShort: locationShort
-    softDeleteRetentionInDays: kvSoftDeleteRetentionInDays
     tags: commonTags
   }
 }
@@ -261,16 +242,6 @@ output storageAccountName string = storage.outputs.storageAccountName
 
 @description('Primary blob endpoint of the Storage Account.')
 output primaryBlobEndpoint string = storage.outputs.primaryBlobEndpoint
-
-// Security
-@description('Resource ID of the Key Vault.')
-output keyVaultId string = security.outputs.keyVaultId
-
-@description('Name of the Key Vault.')
-output keyVaultName string = security.outputs.keyVaultName
-
-@description('URI of the Key Vault.')
-output keyVaultUri string = security.outputs.keyVaultUri
 
 // Private DNS & Private Endpoint
 @description('Resource ID of the Private DNS Zone (privatelink.blob.core.windows.net).')
