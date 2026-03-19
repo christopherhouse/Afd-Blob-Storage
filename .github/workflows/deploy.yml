@@ -23,6 +23,11 @@
 #   AZURE_SUBSCRIPTION_ID   — Target Azure subscription ID
 #   AZURE_LOCATION          — Primary Azure region  (e.g. "eastus")
 #
+# Optional repository variable:
+#   DEPLOY_TARGET           — Default IaC stack for push / PR triggers: "bicep",
+#                             "terraform", or "both" (default when unset: "both").
+#                             The workflow_dispatch dropdown overrides this value.
+#
 # Required environment variables on the "dev" environment:
 #   BICEP_RESOURCE_GROUP       — Resource group for Bicep deployments
 #   TF_RESOURCE_GROUP          — Pre-existing resource group for Terraform deployments
@@ -106,7 +111,7 @@ jobs:
   lint-bicep:
     name: "Lint — Bicep"
     runs-on: ubuntu-latest
-    if: contains(fromJSON('["both","bicep"]'), inputs.deploy_target || 'both')
+    if: contains(fromJSON('["both","bicep"]'), inputs.deploy_target || vars.DEPLOY_TARGET || 'both')
 
     steps:
       # ── 1. Source code ──────────────────────────────────────────────────────
@@ -153,7 +158,7 @@ jobs:
   lint-terraform:
     name: "Lint — Terraform"
     runs-on: ubuntu-latest
-    if: contains(fromJSON('["both","terraform"]'), inputs.deploy_target || 'both')
+    if: contains(fromJSON('["both","terraform"]'), inputs.deploy_target || vars.DEPLOY_TARGET || 'both')
 
     steps:
       # ── 1. Source code ──────────────────────────────────────────────────────
@@ -211,7 +216,7 @@ jobs:
     needs: lint-bicep
 
     # Skip on pull_request events — only deploy on push to main or manual trigger
-    if: github.event_name != 'pull_request' && contains(fromJSON('["both","bicep"]'), inputs.deploy_target || 'both')
+    if: github.event_name != 'pull_request' && contains(fromJSON('["both","bicep"]'), inputs.deploy_target || vars.DEPLOY_TARGET || 'both')
 
     # Links to the "dev" GitHub environment for protection rules, required
     # reviewers, and environment-scoped variables.
@@ -309,7 +314,7 @@ jobs:
     needs: lint-terraform
 
     # Skip on pull_request events — only deploy on push to main or manual trigger
-    if: github.event_name != 'pull_request' && contains(fromJSON('["both","terraform"]'), inputs.deploy_target || 'both')
+    if: github.event_name != 'pull_request' && contains(fromJSON('["both","terraform"]'), inputs.deploy_target || vars.DEPLOY_TARGET || 'both')
 
     # Links to the "dev" GitHub environment for protection rules and
     # environment-scoped variables (TF_STATE_*, BICEP_RESOURCE_GROUP, etc.)
