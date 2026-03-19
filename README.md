@@ -213,7 +213,7 @@ azcopy copy "./my-folder" \
 │   │       └── README.md              # Certificate scripts documentation
 │   └── terraform/               # Terraform root module + child modules
 │       ├── modules/
-│       │   ├── front_door/      # AFD Premium profile + WAF policy (AVM)
+│       │   ├── front_door/      # AFD Premium profile + WAF policy (native azurerm)
 │       │   ├── monitoring/      # Log Analytics Workspace (AVM)
 │       │   ├── networking/      # VNet + PE subnet (AVM)
 │       │   ├── private_dns/     # Private DNS zone + VNet link (AVM)
