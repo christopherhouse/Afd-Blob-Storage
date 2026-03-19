@@ -71,3 +71,9 @@ enable_telemetry = false
 # ---------------------------------------------------------------------------
 afd_waf_mode                = "Prevention"
 afd_custom_domain_host_name = "storage.christopher-house.com"
+
+# ---------------------------------------------------------------------------
+# Health Probe
+# Enable the AFD health probe via anonymous blob access on the health container.
+# ---------------------------------------------------------------------------
+enable_front_door_health_probe = true

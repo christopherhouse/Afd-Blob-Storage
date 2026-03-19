@@ -44,6 +44,10 @@ param afdWafMode = 'Prevention'
 
 param afdCustomDomainHostName = 'blob.christopher-house.com'
 
+// ── Health Probe ─────────────────────────────────────────────────────────
+
+param enableFrontDoorHealthProbe = true
+
 // ── Tags ─────────────────────────────────────────────────────────────────────
 
 param tags = {

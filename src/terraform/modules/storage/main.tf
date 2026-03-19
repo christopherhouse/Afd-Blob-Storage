@@ -4,9 +4,10 @@
 # Deploys an Azure Storage Account configured for maximum security:
 #   - Public network access disabled
 #   - Shared-key (SAS) access disabled; Azure AD authentication only
-#   - Anonymous access allowed at account level but disabled on all containers
+#   - Anonymous access allowed at account level only when health probe is enabled
 #   - TLS 1.2 minimum; HTTPS-only traffic
 #   - Network rules default-deny with no bypass (fully private)
+#   - Conditionally creates a 'health' container with anonymous blob read access
 #
 # AVM Used: Azure/avm-res-storage-storageaccount/azurerm @ 0.6.7
 # Registry: https://registry.terraform.io/modules/Azure/avm-res-storage-storageaccount/azurerm/0.6.7
@@ -38,11 +39,12 @@ module "storage_account" {
   # Disable shared-key / SAS authentication; enforce Azure AD-only access.
   shared_access_key_enabled = false
 
-  # Allow blob-level anonymous access at the account level.
-  # Individual container access is set to 'private' for all containers; the AFD
-  # health probe authenticates via a User Assigned Managed Identity with
-  # Storage Blob Data Reader role instead of anonymous access.
-  allow_nested_items_to_be_public = true
+  # Allow blob-level anonymous access at the account level only when the AFD
+  # health probe is enabled.  This lets the 'health' container expose
+  # /health/health.txt anonymously so AFD can probe origin health (AFD does not
+  # support MI auth over Private Link).  When disabled, no anonymous access is
+  # permitted.
+  allow_nested_items_to_be_public = var.enable_front_door_health_probe
 
   # --- Security: Encryption in Transit ---
   min_tls_version            = "TLS1_2"
@@ -58,19 +60,24 @@ module "storage_account" {
 
   # --- Blob Containers ---
   # 'upload'  : private — content is accessible via authenticated requests only.
-  # 'health'  : private — the AFD health probe authenticates via a User Assigned
-  #             Managed Identity (Storage Blob Data Reader) instead of anonymous
-  #             blob-level access.
-  containers = {
-    upload = {
-      name                  = "upload"
-      container_access_type = "private"
-    }
-    health = {
-      name                  = "health"
-      container_access_type = "private"
-    }
-  }
+  # 'health'  : (conditional) when enable_front_door_health_probe is true, created
+  #             with blob-level anonymous read access so AFD health probes can GET
+  #             /health/health.txt without authentication (AFD does not support MI
+  #             auth over Private Link).
+  containers = merge(
+    {
+      upload = {
+        name                  = "upload"
+        container_access_type = "private"
+      }
+    },
+    var.enable_front_door_health_probe ? {
+      health = {
+        name                  = "health"
+        container_access_type = "blob"
+      }
+    } : {}
+  )
 
   # --- Telemetry & Tags ---
   enable_telemetry = var.enable_telemetry

@@ -62,6 +62,9 @@ param afdCustomDomainHostName string = ''
 @description('Additional resource tags to merge with the standard deployment tags. Use this to supply workload-specific tags (e.g. cost centre, security controls).')
 param tags object = {}
 
+@description('When true, creates a "health" blob container with anonymous read access and configures the AFD origin group health probe to GET /health/health.txt. AFD does not support Managed Identity authentication over Private Link, so anonymous blob access is required for health probes.')
+param enableFrontDoorHealthProbe bool = true
+
 // ── Variables ─────────────────────────────────────────────────────────────────
 
 // Common tags applied to every resource in this deployment.
@@ -115,6 +118,7 @@ module storage 'modules/storage/storageAccount.bicep' = {
     locationShort: locationShort
     skuName: storageSkuName
     logAnalyticsWorkspaceId: monitoring.outputs.workspaceId
+    enableFrontDoorHealthProbe: enableFrontDoorHealthProbe
     tags: commonTags
   }
 }
@@ -182,42 +186,10 @@ module wafPolicy 'modules/frontDoor/wafPolicy.bicep' = {
   }
 }
 
-// ── Module: User Assigned Managed Identity ────────────────────────────────────
-// Deploys a UAMI that will be attached to the Azure Front Door profile to
-// authenticate origin requests (health probes) to the storage account's health
-// container using Entra ID instead of anonymous access.
-
-module identity 'modules/identity/userAssignedIdentity.bicep' = {
-  name: 'identityDeployment-${deployment().name}'
-  params: {
-    location: location
-    workloadName: workloadName
-    environmentName: environmentName
-    locationShort: locationShort
-    tags: commonTags
-  }
-}
-
-// ── Module: Storage Blob Data Reader Role Assignment ──────────────────────────
-// Grants the User Assigned Managed Identity the Storage Blob Data Reader role on
-// the 'health' blob container so that the AFD health probe can read
-// health/health.txt through the origin group authentication mechanism.
-// Scoped to the container (not the entire storage account) for least privilege.
-
-module storageBlobDataReaderRole 'modules/identity/storageBlobDataReaderRoleAssignment.bicep' = {
-  name: 'storageBlobDataReaderRoleDeployment-${deployment().name}'
-  params: {
-    storageAccountName: storage.outputs.storageAccountName
-    containerName: 'health'
-    principalId: identity.outputs.userAssignedIdentityPrincipalId
-  }
-}
-
 // ── Module: Azure Front Door Premium ──────────────────────────────────────────
 // Deploys the AFD Premium profile, endpoint, blob origin group (via Private Link),
 // route, and security policy linking the WAF policy to the endpoint.
-// Depends on: storage (for storageAccountId/Name), wafPolicy (for wafPolicyId),
-// and identity (for UAMI to authenticate origin requests).
+// Depends on: storage (for storageAccountId/Name) and wafPolicy (for wafPolicyId).
 
 module frontDoor 'modules/frontDoor/frontDoor.bicep' = {
   name: 'frontDoorDeployment-${deployment().name}'
@@ -231,7 +203,7 @@ module frontDoor 'modules/frontDoor/frontDoor.bicep' = {
     wafPolicyId: wafPolicy.outputs.wafPolicyId
     customDomainHostName: afdCustomDomainHostName
     logAnalyticsWorkspaceId: monitoring.outputs.workspaceId
-    userAssignedIdentityId: identity.outputs.userAssignedIdentityId
+    enableFrontDoorHealthProbe: enableFrontDoorHealthProbe
     tags: commonTags
   }
 }
@@ -309,13 +281,3 @@ output frontDoorEndpointHostName string = frontDoor.outputs.frontDoorEndpointHos
 
 @description('Custom domain hostname configured for the AFD endpoint.')
 output frontDoorCustomDomainHostName string = frontDoor.outputs.customDomainHostName
-
-// Identity
-@description('Resource ID of the User Assigned Managed Identity attached to AFD.')
-output userAssignedIdentityId string = identity.outputs.userAssignedIdentityId
-
-@description('Name of the User Assigned Managed Identity.')
-output userAssignedIdentityName string = identity.outputs.userAssignedIdentityName
-
-@description('Principal (object) ID of the User Assigned Managed Identity.')
-output userAssignedIdentityPrincipalId string = identity.outputs.userAssignedIdentityPrincipalId

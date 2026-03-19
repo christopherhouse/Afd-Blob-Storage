@@ -130,22 +130,3 @@ output "afd_endpoint_hostname" {
   description = "The .azurefd.net hostname of the Front Door endpoint. Use this as the public-facing URL for content served from the private storage account."
   value       = module.front_door.afd_endpoint_hostname
 }
-
-# ---------------------------------------------------------------------------
-# User Assigned Managed Identity
-# ---------------------------------------------------------------------------
-
-output "user_assigned_identity_id" {
-  description = "Azure resource ID of the User Assigned Managed Identity attached to AFD."
-  value       = azurerm_user_assigned_identity.afd.id
-}
-
-output "user_assigned_identity_name" {
-  description = "Name of the User Assigned Managed Identity."
-  value       = azurerm_user_assigned_identity.afd.name
-}
-
-output "user_assigned_identity_principal_id" {
-  description = "Principal (object) ID of the User Assigned Managed Identity."
-  value       = azurerm_user_assigned_identity.afd.principal_id
-}

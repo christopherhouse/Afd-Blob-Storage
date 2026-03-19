@@ -1,5 +1,5 @@
 metadata name = 'Storage Account Module'
-metadata description = 'Deploys a hardened Storage Account with public network access disabled, shared-key access disabled, upload and health blob containers, and optional blob diagnostic settings. Consumes AVM avm/res/storage/storage-account:0.9.1.'
+metadata description = 'Deploys a hardened Storage Account with public network access disabled, shared-key access disabled, an upload blob container, and optional blob diagnostic settings. When enableFrontDoorHealthProbe is true, a health container with anonymous blob read access is also created. Consumes AVM avm/res/storage/storage-account:0.9.1.'
 metadata owner = 'platform-team'
 
 targetScope = 'resourceGroup'
@@ -42,6 +42,9 @@ param tags object = {}
 @description('Resource ID of the Log Analytics Workspace to send blob diagnostic logs and metrics to. Leave empty to skip diagnostic settings.')
 param logAnalyticsWorkspaceId string = ''
 
+@description('When true, creates a "health" blob container with anonymous read access so that the AFD health probe can GET /health/health.txt without authentication. AFD does not support Managed Identity authentication over Private Link, so anonymous blob access is required for health probes.')
+param enableFrontDoorHealthProbe bool = true
+
 // ── Variables ─────────────────────────────────────────────────────────────────
 
 // CAF naming for storage accounts: no hyphens, lowercase, max 24 chars.
@@ -51,23 +54,25 @@ param logAnalyticsWorkspaceId string = ''
 var rawStorageName     = toLower('st${workloadName}${environmentName}${locationShort}')
 var storageAccountName = take(rawStorageName, 24)
 
-// Blob containers: both 'upload' and 'health' are private.
-// The AFD health probe authenticates to the 'health' container using a User
-// Assigned Managed Identity with the Storage Blob Data Reader role instead of
-// relying on anonymous blob-level access.
-var blobContainers = [
-  {
-    name: 'upload'
-    // No public access — content is private and accessible via authenticated requests only.
-    publicAccess: 'None'
-  }
-  {
-    name: 'health'
-    // No public access — the AFD health probe authenticates via a User Assigned
-    // Managed Identity (Storage Blob Data Reader) instead of anonymous access.
-    publicAccess: 'None'
-  }
-]
+// Blob containers: 'upload' is always private.
+// When enableFrontDoorHealthProbe is true, a 'health' container is created
+// with anonymous blob-level read access so that AFD health probes can read
+// /health/health.txt without authentication (AFD does not support MI auth
+// over Private Link).
+var blobContainers = concat(
+  [
+    {
+      name: 'upload'
+      publicAccess: 'None'
+    }
+  ],
+  enableFrontDoorHealthProbe ? [
+    {
+      name: 'health'
+      publicAccess: 'Blob'
+    }
+  ] : []
+)
 
 // Build the blobServices object: always include the two containers, and
 // conditionally add diagnosticSettings when a Log Analytics Workspace ID is
@@ -110,11 +115,12 @@ module storageAccount 'br/public:avm/res/storage/storage-account:0.9.1' = {
     // Security: disable all public inbound traffic; access via private endpoint only.
     publicNetworkAccess: 'Disabled'
 
-    // Security: allow blob-level anonymous access at the account level.
-    // Individual container access is set to 'None' for all containers; the AFD
-    // health probe authenticates via a User Assigned Managed Identity with
-    // Storage Blob Data Reader role instead of anonymous access.
-    allowBlobPublicAccess: true
+    // Security: allow blob-level anonymous access at the account level only when
+    // the AFD health probe is enabled. This lets the 'health' container expose
+    // /health/health.txt anonymously so AFD can probe origin health (AFD does not
+    // support MI auth over Private Link). When disabled, no anonymous access is
+    // permitted.
+    allowBlobPublicAccess: enableFrontDoorHealthProbe
 
     // Security: block all network access by default; allow only from trusted Azure services.
     networkAcls: {

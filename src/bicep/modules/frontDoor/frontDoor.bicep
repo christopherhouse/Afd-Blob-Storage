@@ -41,8 +41,8 @@ param customDomainHostName string = ''
 @description('Resource ID of the Log Analytics Workspace to send AFD diagnostic logs and metrics to. Leave empty to skip diagnostic settings.')
 param logAnalyticsWorkspaceId string = ''
 
-@description('Resource ID of the User Assigned Managed Identity to attach to the AFD profile for origin authentication.')
-param userAssignedIdentityId string
+@description('When true, configures the AFD origin group health probe to GET /health/health.txt. When false, uses a basic HEAD / probe. AFD does not support Managed Identity authentication over Private Link, so health probes rely on anonymous blob access when enabled.')
+param enableFrontDoorHealthProbe bool = true
 
 // ── Variables ─────────────────────────────────────────────────────────────────
 
@@ -136,16 +136,14 @@ module afdProfile 'br/public:avm/res/cdn/profile:0.11.0' = {
     originGroups: [
       {
         name: originGroupName
-        // Health probe: GET requests to the dedicated health blob every 100 seconds.
-        // The health container requires authentication; the AFD profile uses a User
-        // Assigned Managed Identity with Storage Blob Data Reader role to authenticate
-        // the probe via the origin group authentication configuration (deployed as a
-        // separate resource below).
+        // Health probe: when enableFrontDoorHealthProbe is true, GET requests are
+        // sent to /health/health.txt (an anonymously readable blob) every 100 seconds.
+        // When disabled, HEAD requests to / serve as a basic connectivity check.
         healthProbeSettings: {
           probeIntervalInSeconds: 100
-          probePath: '/health/health.txt'
+          probePath: enableFrontDoorHealthProbe ? '/health/health.txt' : '/'
           probeProtocol: 'Https'
-          probeRequestType: 'GET'
+          probeRequestType: enableFrontDoorHealthProbe ? 'GET' : 'HEAD'
         }
         loadBalancingSettings: {
           additionalLatencyInMilliseconds: 50
@@ -219,54 +217,16 @@ module afdProfile 'br/public:avm/res/cdn/profile:0.11.0' = {
       }
     ]
 
-    // ── Managed Identities ──────────────────────────────────────────────────────
-    // Attach the User Assigned Managed Identity to the AFD profile so it can
-    // authenticate to origins (e.g. the storage account health container) using
-    // Entra ID tokens.
-    managedIdentities: {
-      userAssignedResourceIds: [
-        userAssignedIdentityId
-      ]
-    }
-
     tags: tags
   }
 }
 
 // ── Origin Group Authentication ──────────────────────────────────────────────
-// Deploys the origin group authentication configuration as a separate resource
-// because the AVM cdn/profile:0.11.0 module does not yet expose the
-// authentication property on origin groups. This uses the 2025-06-01 API
-// version which introduced the authentication block on origin groups.
-// The PUT re-specifies healthProbeSettings and loadBalancingSettings to
-// preserve the origin group configuration set by the AVM module.
-resource originGroupAuth 'Microsoft.Cdn/profiles/originGroups@2025-06-01' = {
-  parent: afdProfileRef
-  name: originGroupName
-  properties: {
-    healthProbeSettings: {
-      probeIntervalInSeconds: 100
-      probePath: '/health/health.txt'
-      probeProtocol: 'Https'
-      probeRequestType: 'GET'
-    }
-    loadBalancingSettings: {
-      additionalLatencyInMilliseconds: 50
-      sampleSize: 4
-      successfulSamplesRequired: 3
-    }
-    authentication: {
-      type: 'UserAssignedIdentity'
-      scope: 'https://storage.azure.com/.default'
-      userAssignedIdentity: {
-        id: userAssignedIdentityId
-      }
-    }
-  }
-  dependsOn: [
-    afdProfile
-  ]
-}
+// NOTE: Origin group authentication via User Assigned Managed Identity was
+// previously deployed here, but AFD does not support MI authentication over
+// Private Link connections. Health probe authentication is now handled via
+// anonymous blob access on the 'health' container (controlled by the
+// enableFrontDoorHealthProbe parameter).
 
 // ── Existing resource reference: AFD Endpoint hostname ────────────────────────
 // The AVM cdn/profile:0.8.0 module does not surface per-endpoint hostnames as
