@@ -100,3 +100,13 @@ variable "custom_domain_host_name" {
   description = "Custom domain hostname for the AFD endpoint (e.g. storage.example.com). Leave empty to use the default .azurefd.net domain only."
   default     = ""
 }
+
+# ---------------------------------------------------------------------------
+# Diagnostics
+# ---------------------------------------------------------------------------
+
+variable "log_analytics_workspace_id" {
+  type        = string
+  description = "Resource ID of the Log Analytics Workspace for AFD diagnostic settings. Leave empty to skip diagnostics."
+  default     = ""
+}
