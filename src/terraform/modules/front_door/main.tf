@@ -98,7 +98,7 @@ resource "azurerm_cdn_frontdoor_custom_domain" "this" {
 # Groups origins for health monitoring and load-balancing decisions.
 # HTTPS health probes run from AFD PoPs to the storage blob service
 # through the private link connection once it has been approved.
-# When enable_front_door_health_probe is true, probes GET /health/health.txt
+# When enable_front_door_health_probe is true, probes HEAD /health/health.txt
 # from an anonymously readable blob container. When false, the health probe
 # is omitted entirely for the origin group.
 resource "azurerm_cdn_frontdoor_origin_group" "this" {
@@ -113,7 +113,7 @@ resource "azurerm_cdn_frontdoor_origin_group" "this" {
     successful_samples_required        = 3
   }
 
-  # Health probe: GET /health/health.txt when enabled, omitted when false.
+  # Health probe: HEAD /health/health.txt when enabled, omitted when false.
   # AFD does not support MI auth over Private Link, so health probes rely
   # on anonymous blob access when enabled.
   dynamic "health_probe" {
@@ -122,7 +122,7 @@ resource "azurerm_cdn_frontdoor_origin_group" "this" {
       interval_in_seconds = 30
       path                = "/health/health.txt"
       protocol            = "Https"
-      request_type        = "GET"
+      request_type        = "HEAD"
     }
   }
 }

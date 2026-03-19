@@ -75,6 +75,6 @@ variable "log_analytics_workspace_id" {
 
 variable "enable_front_door_health_probe" {
   type        = bool
-  description = "When true, creates a 'health' blob container with anonymous blob read access so that the AFD health probe can GET /health/health.txt without authentication. AFD does not support MI auth over Private Link."
+  description = "When true, creates a 'health' blob container with anonymous blob read access so that the AFD health probe can HEAD /health/health.txt without authentication. AFD does not support MI auth over Private Link."
   default     = true
 }

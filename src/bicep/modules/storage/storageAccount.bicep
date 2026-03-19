@@ -42,7 +42,7 @@ param tags object = {}
 @description('Resource ID of the Log Analytics Workspace to send blob diagnostic logs and metrics to. Leave empty to skip diagnostic settings.')
 param logAnalyticsWorkspaceId string = ''
 
-@description('When true, creates a "health" blob container with anonymous read access so that the AFD health probe can GET /health/health.txt without authentication. AFD does not support Managed Identity authentication over Private Link, so anonymous blob access is required for health probes.')
+@description('When true, creates a "health" blob container with anonymous read access so that the AFD health probe can HEAD /health/health.txt without authentication. AFD does not support Managed Identity authentication over Private Link, so anonymous blob access is required for health probes.')
 param enableFrontDoorHealthProbe bool = true
 
 // ── Variables ─────────────────────────────────────────────────────────────────

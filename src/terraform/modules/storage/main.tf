@@ -61,7 +61,7 @@ module "storage_account" {
   # --- Blob Containers ---
   # 'upload'  : private — content is accessible via authenticated requests only.
   # 'health'  : (conditional) when enable_front_door_health_probe is true, created
-  #             with blob-level anonymous read access so AFD health probes can GET
+  #             with blob-level anonymous read access so AFD health probes can HEAD
   #             /health/health.txt without authentication (AFD does not support MI
   #             auth over Private Link).
   containers = merge(

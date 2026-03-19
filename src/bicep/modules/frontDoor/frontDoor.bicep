@@ -41,7 +41,7 @@ param customDomainHostName string = ''
 @description('Resource ID of the Log Analytics Workspace to send AFD diagnostic logs and metrics to. Leave empty to skip diagnostic settings.')
 param logAnalyticsWorkspaceId string = ''
 
-@description('When true, configures the AFD origin group health probe to GET /health/health.txt. When false, the health probe is disabled entirely for the origin group. AFD does not support Managed Identity authentication over Private Link, so health probes rely on anonymous blob access when enabled.')
+@description('When true, configures the AFD origin group health probe to HEAD /health/health.txt. When false, the health probe is disabled entirely for the origin group. AFD does not support Managed Identity authentication over Private Link, so health probes rely on anonymous blob access when enabled.')
 param enableFrontDoorHealthProbe bool = true
 
 // ── Variables ─────────────────────────────────────────────────────────────────
@@ -136,7 +136,7 @@ module afdProfile 'br/public:avm/res/cdn/profile:0.11.0' = {
     originGroups: [
       {
         name: originGroupName
-        // Health probe: when enableFrontDoorHealthProbe is true, GET requests are
+        // Health probe: when enableFrontDoorHealthProbe is true, HEAD requests are
         // sent to /health/health.txt (an anonymously readable blob) every 100 seconds.
         // When disabled, healthProbeSettings is null so the origin group has no
         // active health probe.
@@ -144,7 +144,7 @@ module afdProfile 'br/public:avm/res/cdn/profile:0.11.0' = {
           probeIntervalInSeconds: 100
           probePath: '/health/health.txt'
           probeProtocol: 'Https'
-          probeRequestType: 'GET'
+          probeRequestType: 'HEAD'
         } : null
         loadBalancingSettings: {
           additionalLatencyInMilliseconds: 50

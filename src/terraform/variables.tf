@@ -175,6 +175,6 @@ variable "afd_custom_domain_host_name" {
 
 variable "enable_front_door_health_probe" {
   type        = bool
-  description = "When true, creates a 'health' blob container with anonymous read access and configures the AFD origin group health probe to GET /health/health.txt. When false, the health probe is disabled entirely and no health container is created. AFD does not support Managed Identity authentication over Private Link, so anonymous blob access is required for health probes."
+  description = "When true, creates a 'health' blob container with anonymous read access and configures the AFD origin group health probe to HEAD /health/health.txt. When false, the health probe is disabled entirely and no health container is created. AFD does not support Managed Identity authentication over Private Link, so anonymous blob access is required for health probes."
   default     = true
 }
