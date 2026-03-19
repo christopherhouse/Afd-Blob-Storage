@@ -254,7 +254,7 @@ resource "azurerm_cdn_frontdoor_security_policy" "this" {
 
         # Also associate with the custom domain when one is configured.
         dynamic "domain" {
-          for_each = var.custom_domain_host_name != "" ? [1] : []
+          for_each = var.custom_domain_host_name != "" ? ["custom_domain"] : []
           content {
             cdn_frontdoor_domain_id = azurerm_cdn_frontdoor_custom_domain.this[0].id
           }
