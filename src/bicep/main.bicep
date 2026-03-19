@@ -200,13 +200,15 @@ module identity 'modules/identity/userAssignedIdentity.bicep' = {
 
 // ── Module: Storage Blob Data Reader Role Assignment ──────────────────────────
 // Grants the User Assigned Managed Identity the Storage Blob Data Reader role on
-// the storage account so that the AFD health probe can read health/health.txt
-// through the origin group authentication mechanism.
+// the 'health' blob container so that the AFD health probe can read
+// health/health.txt through the origin group authentication mechanism.
+// Scoped to the container (not the entire storage account) for least privilege.
 
 module storageBlobDataReaderRole 'modules/identity/storageBlobDataReaderRoleAssignment.bicep' = {
   name: 'storageBlobDataReaderRoleDeployment-${deployment().name}'
   params: {
     storageAccountName: storage.outputs.storageAccountName
+    containerName: 'health'
     principalId: identity.outputs.userAssignedIdentityPrincipalId
   }
 }

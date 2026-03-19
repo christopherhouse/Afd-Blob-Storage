@@ -212,12 +212,13 @@ resource "azurerm_user_assigned_identity" "afd" {
 ###############################################################################
 # Role Assignment: Storage Blob Data Reader for UAMI
 # Grants the User Assigned Managed Identity the Storage Blob Data Reader role
-# on the storage account so that the AFD health probe can read
+# on the 'health' blob container so that the AFD health probe can read
 # health/health.txt through the origin group authentication mechanism.
+# Scoped to the container (not the entire storage account) for least privilege.
 ###############################################################################
 
 resource "azurerm_role_assignment" "afd_storage_blob_data_reader" {
-  scope                = module.storage.storage_account_id
+  scope                = "${module.storage.storage_account_id}/blobServices/default/containers/health"
   role_definition_name = "Storage Blob Data Reader"
   principal_id         = azurerm_user_assigned_identity.afd.principal_id
   principal_type       = "ServicePrincipal"

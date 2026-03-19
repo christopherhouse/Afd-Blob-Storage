@@ -1,13 +1,16 @@
 metadata name = 'Storage Blob Data Reader Role Assignment'
-metadata description = 'Assigns the Storage Blob Data Reader role to a principal on a given storage account. Used to grant the AFD UAMI read access for health probe authentication.'
+metadata description = 'Assigns the Storage Blob Data Reader role to a principal on a specific blob container within a storage account. Used to grant the AFD UAMI read access for health probe authentication.'
 metadata owner = 'platform-team'
 
 targetScope = 'resourceGroup'
 
 // ── Parameters ────────────────────────────────────────────────────────────────
 
-@description('Name of the storage account to scope the role assignment to.')
+@description('Name of the storage account that contains the target container.')
 param storageAccountName string
+
+@description('Name of the blob container to scope the role assignment to.')
+param containerName string
 
 @description('Principal (object) ID of the identity to assign the role to.')
 param principalId string
@@ -22,11 +25,19 @@ var storageBlobDataReaderRoleId = '2a2b9908-6ea1-4ae2-8e65-a410df84e7d1'
 
 resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' existing = {
   name: storageAccountName
+
+  resource blobService 'blobServices' existing = {
+    name: 'default'
+
+    resource container 'containers' existing = {
+      name: containerName
+    }
+  }
 }
 
 resource roleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(storageAccount.id, principalId, storageBlobDataReaderRoleId)
-  scope: storageAccount
+  name: guid(storageAccount::blobService::container.id, principalId, storageBlobDataReaderRoleId)
+  scope: storageAccount::blobService::container
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', storageBlobDataReaderRoleId)
     principalId: principalId
