@@ -129,15 +129,16 @@ module afdProfile 'br/public:avm/res/cdn/profile:0.8.0' = {
     originGroups: [
       {
         name: originGroupName
-        // Health probe: HEAD requests to the root path over HTTPS every 100 seconds.
-        // Blob Storage has no dedicated health endpoint; probing '/' returns 400 which
-        // AFD interprets as the origin being reachable (non-connection-error responses
-        // are treated as healthy by default).
+        // Health probe: GET requests to the dedicated health blob every 100 seconds.
+        // The health container is configured with blob-level anonymous read access,
+        // allowing the probe to receive a 200 OK without credentials through the
+        // Private Link connection.  Ensure health/health.txt exists in the
+        // storage account before expecting 200 responses.
         healthProbeSettings: {
           probeIntervalInSeconds: 100
-          probePath: '/'
+          probePath: '/health/health.txt'
           probeProtocol: 'Https'
-          probeRequestType: 'HEAD'
+          probeRequestType: 'GET'
         }
         loadBalancingSettings: {
           additionalLatencyInMilliseconds: 50
