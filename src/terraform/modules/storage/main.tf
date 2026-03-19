@@ -67,14 +67,14 @@ module "storage_account" {
   containers = merge(
     {
       upload = {
-        name                  = "upload"
-        container_access_type = "private"
+        name          = "upload"
+        public_access = "None"
       }
     },
     var.enable_front_door_health_probe ? {
       health = {
-        name                  = "health"
-        container_access_type = "blob"
+        name          = "health"
+        public_access = "Blob"
       }
     } : {}
   )
