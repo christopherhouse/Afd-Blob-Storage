@@ -263,14 +263,7 @@ display_summary() {
     echo "  Certificate Dir:  $HOME/.acme.sh/$cert_name/"
     echo "========================================================================"
     echo ""
-    log_warning "IMPORTANT: Store the PFX password securely (e.g., Azure Key Vault)"
-    log_info "You can import this certificate to Azure Key Vault using:"
-    echo ""
-    echo "  az keyvault certificate import \\"
-    echo "    --vault-name <key-vault-name> \\"
-    echo "    --name $cert_name \\"
-    echo "    --file $pfx_file \\"
-    echo "    --password '$password'"
+    log_warning "IMPORTANT: Store the PFX password securely (e.g., a secrets manager)"
     echo ""
 }
 

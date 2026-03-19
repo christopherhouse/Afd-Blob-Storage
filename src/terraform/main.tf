@@ -5,7 +5,6 @@
 #   - networking  : VNet + private-endpoint subnet
 #   - monitoring  : Log Analytics Workspace
 #   - storage     : Storage Account (fully private)
-#   - security    : Key Vault (RBAC-enabled, purge-protected)
 #   - front_door  : Azure Front Door Premium profile + WAF policy
 #
 # Resource names follow CAF conventions and are computed in locals below.
@@ -78,9 +77,6 @@ locals {
     )
   )
 
-  # Key Vault names: alphanumeric + hyphens, max 24 characters.
-  key_vault_name = "kv-${substr("${var.workload_name}-${var.environment_name}", 0, 21)}"
-
   # Canonical resource names (CAF-compliant prefixes).
   names = {
     vnet                    = "vnet-${local.resource_prefix}"
@@ -88,7 +84,6 @@ locals {
     nsg                     = "nsg-pe-${local.resource_prefix}"
     storage_account         = local.storage_account_name
     log_analytics_workspace = "law-${local.resource_prefix}"
-    key_vault               = local.key_vault_name
     private_dns_zone        = "privatelink.blob.core.windows.net"
     private_endpoint        = "pe-${local.resource_prefix}-blob"
 
@@ -192,24 +187,6 @@ module "storage" {
   enable_telemetry               = var.enable_telemetry
   log_analytics_workspace_id     = module.monitoring.workspace_resource_id
   enable_front_door_health_probe = var.enable_front_door_health_probe
-}
-
-###############################################################################
-# Security Module
-# Deploys a Key Vault with RBAC, purge protection, and no public network access.
-###############################################################################
-
-module "security" {
-  source = "./modules/security"
-
-  resource_group_name        = data.azurerm_resource_group.this.name
-  location                   = data.azurerm_resource_group.this.location
-  name                       = local.names.key_vault
-  tenant_id                  = data.azurerm_client_config.current.tenant_id
-  sku_name                   = var.kv_sku_name
-  soft_delete_retention_days = var.kv_soft_delete_retention_days
-  tags                       = local.common_tags
-  enable_telemetry           = var.enable_telemetry
 }
 
 ###############################################################################

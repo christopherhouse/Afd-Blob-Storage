@@ -398,14 +398,7 @@ function Show-Summary {
     Write-Host "  PFX Password:     $plainPassword"
     Write-Host "========================================================================"
     Write-Host ""
-    Write-ColorOutput "IMPORTANT: Store the PFX password securely (e.g., Azure Key Vault)" -Level Warning
-    Write-ColorOutput "You can import this certificate to Azure Key Vault using:" -Level Info
-    Write-Host ""
-    Write-Host "  az keyvault certificate import \"
-    Write-Host "    --vault-name <key-vault-name> \"
-    Write-Host "    --name $Domain \"
-    Write-Host "    --file `"$PfxPath`" \"
-    Write-Host "    --password '$plainPassword'"
+    Write-ColorOutput "IMPORTANT: Store the PFX password securely (e.g., a secrets manager)" -Level Warning
     Write-Host ""
 
     # Clear sensitive data

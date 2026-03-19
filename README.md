@@ -26,7 +26,6 @@ Internet ──► Azure Front Door Premium (WAF) ──► [Private Link] ─�
 | Virtual Network + Subnet | `modules/networking/virtualNetwork.bicep` | `modules/networking/` | Hosts the private endpoint NIC |
 | Private DNS Zone | `modules/networking/privateDnsZone.bicep` | `modules/private_dns/` | Resolves storage FQDN to private IP |
 | Log Analytics Workspace | `modules/monitoring/logAnalyticsWorkspace.bicep` | `modules/monitoring/` | Centralised diagnostic logs and metrics |
-| Key Vault | `modules/security/keyVault.bicep` | `modules/security/` | Stores secrets and certificates; no public network access |
 | User Assigned Managed Identity | `modules/identity/userAssignedIdentity.bicep` | *(Bicep only)* | Identity for AFD origin group authentication |
 
 ## Foundational Infrastructure
@@ -40,7 +39,6 @@ The following foundational resources are implemented in both `src/bicep/` and `s
 | Virtual Network + PE Subnet | `modules/networking/virtualNetwork.bicep` | `modules/networking/` | Private endpoint network policies disabled on PE subnet |
 | Storage Account | `modules/storage/storageAccount.bicep` | `modules/storage/` | `publicNetworkAccess: Disabled`, `allowBlobPublicAccess: false`, TLS 1.2 minimum |
 | Log Analytics Workspace | `modules/monitoring/logAnalyticsWorkspace.bicep` | `modules/monitoring/` | 30-day retention; receives diagnostic logs from all resources |
-| Key Vault | `modules/security/keyVault.bicep` | `modules/security/` | RBAC authorisation mode; public network access disabled; soft-delete and purge protection enabled |
 
 All modules use **Azure Verified Modules (AVM)** as the implementation foundation, with the exception of the Terraform Front Door module which uses native `azurerm_cdn_frontdoor_*` resources due to a lifecycle issue in the AVM CDN module (v0.1.9) that causes a destroy/recreate cycle on every apply. Environment-specific values are supplied via `src/bicep/parameters/main.dev.bicepparam` (Bicep) and `src/terraform/terraform.tfvars` (Terraform).
 
@@ -201,7 +199,6 @@ azcopy copy "./my-folder" \
 │   │   │   ├── identity/       # User Assigned Managed Identity + RBAC (AVM)
 │   │   │   ├── monitoring/      # Log Analytics Workspace (AVM)
 │   │   │   ├── networking/      # VNet + PE subnet (AVM)
-│   │   │   ├── security/        # Key Vault (AVM)
 │   │   │   └── storage/         # Storage account (AVM)
 │   │   ├── parameters/
 │   │   │   └── main.dev.bicepparam
@@ -218,7 +215,6 @@ azcopy copy "./my-folder" \
 │       │   ├── networking/      # VNet + PE subnet (AVM)
 │       │   ├── private_dns/     # Private DNS zone + VNet link (AVM)
 │       │   ├── private_endpoint/ # Private endpoint + NIC (AVM)
-│       │   ├── security/        # Key Vault (AVM)
 │       │   └── storage/         # Storage account (AVM)
 │       ├── main.tf
 │       ├── variables.tf
@@ -492,18 +488,6 @@ Both scripts provide identical functionality:
 - Domain managed by Cloudflare DNS
 - For Bash: `acme.sh` (auto-installed), `openssl`, `curl`/`wget`
 - For PowerShell: PowerShell 7.0+, `Posh-ACME` module (auto-installed)
-
-### Importing to Azure Key Vault
-
-After obtaining a certificate, import it to Azure Key Vault for use with Front Door:
-
-```bash
-az keyvault certificate import \
-  --vault-name <key-vault-name> \
-  --name <certificate-name> \
-  --file ./certificates/<certificate-name>.pfx \
-  --password '<pfx-password>'
-```
 
 For detailed usage instructions, configuration options, troubleshooting, and integration with Azure Front Door, see the [certificate scripts README](src/scripts/certificates/README.md).
 

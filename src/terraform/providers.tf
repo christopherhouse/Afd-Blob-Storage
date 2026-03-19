@@ -1,7 +1,7 @@
 ###############################################################################
 # Provider Configuration
 # Pinned provider versions following pessimistic constraint operator (~>).
-# The azapi provider is required by AVM modules (storage, key vault, LAW).
+# The azapi provider is required by AVM modules (storage, LAW).
 ###############################################################################
 
 terraform {
@@ -16,7 +16,7 @@ terraform {
     azapi = {
       source  = "Azure/azapi"
       version = "~> 2.4"
-      # Required by AVM modules: storage, key vault, log analytics workspace
+      # Required by AVM modules: storage, log analytics workspace
     }
   }
 
@@ -63,12 +63,6 @@ terraform {
 ###############################################################################
 provider "azurerm" {
   features {
-    key_vault {
-      purge_soft_delete_on_destroy               = false
-      purge_soft_deleted_secrets_on_destroy      = false
-      purge_soft_deleted_certificates_on_destroy = false
-      recover_soft_deleted_key_vaults            = true
-    }
     resource_group {
       prevent_deletion_if_contains_resources = true
     }
