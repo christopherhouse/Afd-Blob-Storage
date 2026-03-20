@@ -140,7 +140,15 @@ az storage blob upload \
   --auth-mode login
 ```
 
-> **Security note:** Only the `health` container is anonymously readable. The `upload` container — where actual content is stored — remains fully private and requires authentication for all operations. If you prefer not to allow any anonymous access, set `enableFrontDoorHealthProbe = false` and AFD will skip health checks entirely (treating the origin as always healthy).
+### Security Risks of Anonymous Access
+
+Enabling the health probe requires `allowBlobPublicAccess: true` (Bicep) or `allow_nested_items_to_be_public = true` (Terraform) at the **storage account level**. While anonymous read access is scoped to the `health` container only — and the `upload` container where actual content is stored remains fully private — there are important security considerations:
+
+- **Account-level setting:** Setting `allowBlobPublicAccess` to `true` enables the *possibility* of anonymous access on any container in the storage account. If an administrator later creates a new container and inadvertently sets its access level to `Blob` or `Container`, that container's data would also be publicly readable.
+- **Compliance and policy:** Many organisations enforce Azure Policy rules that deny storage accounts with `allowBlobPublicAccess = true`. Enabling the health probe will conflict with such policies.
+- **Attack surface:** Even though the `health` container holds only a static `health.txt` file, any blob uploaded to that container is anonymously readable. Ensuring that only the intended health-check file exists in the container is an ongoing operational responsibility.
+
+> **Recommendation:** Weigh the security risk of enabling anonymous blob access against the operational value provided by health probes. If your security posture or compliance requirements do not permit anonymous access on the storage account, **set `enableFrontDoorHealthProbe = false`** (Bicep) or **`enable_front_door_health_probe = false`** (Terraform) and forego health probes entirely. In this configuration, AFD will skip health checks and treat the origin as always healthy, which is an acceptable trade-off for many workloads — especially those with a single origin.
 
 ---
 
