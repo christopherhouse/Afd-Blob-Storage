@@ -86,10 +86,30 @@ module wafPolicy 'br/public:avm/res/network/front-door-web-application-firewall-
       ]
     }
 
-    // Custom rules: empty set — the AVM default ships a geo-filter placeholder rule that is
-    // not appropriate for all environments. Add organisation-specific custom rules here.
+    // Custom rules: block requests targeting the /health/* path so that internal health-probe
+    // endpoints are not reachable by external clients. The regex uses an inline case-insensitive
+    // flag (?i) to match regardless of casing.
     customRules: {
-      rules: []
+      rules: [
+        {
+          name: 'BlockHealthPath'
+          priority: 100
+          ruleType: 'MatchRule'
+          action: 'Block'
+          enabledState: 'Enabled'
+          matchConditions: [
+            {
+              matchVariable: 'RequestUri'
+              operator: 'RegEx'
+              matchValue: [
+                '(?i)health/'
+              ]
+              negateCondition: false
+              transforms: []
+            }
+          ]
+        }
+      ]
     }
 
     tags: tags
