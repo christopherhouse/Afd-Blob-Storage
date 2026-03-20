@@ -140,11 +140,7 @@
   <line x1="740" y1="560" x2="200" y2="520" stroke="#0284C7" stroke-width="1" stroke-dasharray="4 2" marker-end="url(#arrow-gray)"/>
   <text x="470" y="530" text-anchor="middle" font-size="8" fill="#0284C7">Blob Diagnostics</text>
 
-  <!-- ===== User Assigned MI ===== -->
-  <rect x="52" y="370" width="148" height="56" rx="6" fill="#ECFDF5" stroke="#059669" stroke-width="1.2" filter="url(#shadow)"/>
-  <text x="126" y="392" text-anchor="middle" font-size="10" font-weight="600" fill="#065F46">🔑 Managed Identity</text>
-  <text x="126" y="408" text-anchor="middle" font-size="9" fill="#6B7280">User Assigned</text>
-  <text x="126" y="420" text-anchor="middle" font-size="8" fill="#6B7280">Storage Blob Data Reader</text>
+
 
   <!-- ===== Legend ===== -->
   <rect x="52" y="650" width="996" height="58" rx="6" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1"/>
