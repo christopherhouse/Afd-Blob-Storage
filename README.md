@@ -44,7 +44,7 @@ After deploying (via either Bicep or Terraform), two manual steps are required b
 
 ### Step 1 — Create the Health Probe File
 
-This solution configures the AFD health probe to check the path `/health/health.txt` on the storage account origin. Create an empty file named `health.txt` in the **health** container so the probe can issue HTTP HEAD requests against it. The file can be empty — its contents are never read; AFD only needs the file to exist and return a successful response.
+This solution configures the AFD health probe to check the path `/health/health.txt` on the storage account origin. Create an empty file named `health.txt` in the **health** container so the probe can issue HTTP HEAD requests against it. The file can be empty — its contents are never read; AFD only needs the file to exist and return a successful response. See the [AFD Health Probes](#afd-health-probes) section below for a detailed explanation of the health probe configuration and why it works this way.
 
 > **Note:** Because the storage account has public network access disabled, you must have network connectivity to the storage account's data plane to upload the blob. This typically means running the upload from a machine that has access to the VNet (e.g., via VPN, ExpressRoute, a jump box inside the VNet, or Azure Cloud Shell with VNet integration).
 
