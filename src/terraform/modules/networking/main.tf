@@ -10,8 +10,7 @@
 ###############################################################################
 
 module "vnet" {
-  source  = "Azure/avm-res-network-virtualnetwork/azurerm"
-  version = "0.17.1"
+  source = "git::https://github.com/Azure/terraform-azurerm-avm-res-network-virtualnetwork.git?ref=d9ee04bea936fdf98aa69a3957fc9cfef92e7673" # v0.17.1
 
   # --- Identity & Placement ---
   # The VNet AVM uses parent_id (resource group resource ID) rather than

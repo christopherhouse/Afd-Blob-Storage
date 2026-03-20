@@ -15,8 +15,7 @@
 ###############################################################################
 
 module "private_endpoint" {
-  source  = "Azure/avm-res-network-privateendpoint/azurerm"
-  version = "0.2.0"
+  source = "git::https://github.com/Azure/terraform-azurerm-avm-res-network-privateendpoint.git?ref=da330babc0448609533b9e935546d573edd6cf3f" # v0.2.0
 
   # --- Identity & Placement ---
   name                = var.name

@@ -10,8 +10,7 @@
 ###############################################################################
 
 module "log_analytics_workspace" {
-  source  = "Azure/avm-res-operationalinsights-workspace/azurerm"
-  version = "0.5.1"
+  source = "git::https://github.com/Azure/terraform-azurerm-avm-res-operationalinsights-workspace.git?ref=b4ffa3ff87ac09ff6de3b7014c44b4d213aa302b" # v0.5.1
 
   # --- Identity & Placement ---
   name                = var.name
