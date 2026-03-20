@@ -22,18 +22,6 @@ This repository contains Infrastructure-as-Code (IaC) — in both **Azure Bicep*
 | Private DNS Zone | `modules/networking/privateDnsZone.bicep` | `modules/private_dns/` | Resolves storage FQDN to private IP |
 | Log Analytics Workspace | `modules/monitoring/logAnalyticsWorkspace.bicep` | `modules/monitoring/` | Centralised diagnostic logs and metrics |
 
-## Foundational Infrastructure
-
-The following foundational resources are implemented in both `src/bicep/` and `src/terraform/`:
-
-| Resource | Module Path (Bicep) | Module Path (Terraform) | Key Security Settings |
-|---|---|---|---|
-| Azure Front Door Premium | `modules/frontDoor/frontDoor.bicep` | `modules/front_door/` | Premium SKU, Private Link origin to blob storage |
-| WAF Policy | `modules/frontDoor/wafPolicy.bicep` | `modules/front_door/` | Prevention mode; OWASP DRS 2.1 + Bot Manager 1.0 |
-| Virtual Network + PE Subnet | `modules/networking/virtualNetwork.bicep` | `modules/networking/` | Private endpoint network policies disabled on PE subnet |
-| Storage Account | `modules/storage/storageAccount.bicep` | `modules/storage/` | `publicNetworkAccess: Disabled`, `allowBlobPublicAccess: false`, TLS 1.2 minimum |
-| Log Analytics Workspace | `modules/monitoring/logAnalyticsWorkspace.bicep` | `modules/monitoring/` | 30-day retention; receives diagnostic logs from all resources |
-
 All modules use **Azure Verified Modules (AVM)** as the implementation foundation, with the exception of the Terraform Front Door module which uses native `azurerm_cdn_frontdoor_*` resources due to a lifecycle issue in the AVM CDN module (v0.1.9) that causes a destroy/recreate cycle on every apply. Environment-specific values are supplied via `src/bicep/parameters/main.dev.bicepparam` (Bicep) and `src/terraform/terraform.tfvars` (Terraform).
 
 ---
