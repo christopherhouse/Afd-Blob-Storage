@@ -17,6 +17,7 @@ This repository contains Infrastructure-as-Code (IaC) — in both **Azure Bicep*
 | Storage Account | `modules/storage/storageAccount.bicep` | `modules/storage/` | Blob storage, public network access disabled |
 | Private Endpoint | `modules/networking/privateEndpoint.bicep` | `modules/private_endpoint/` | Connects storage into the VNet |
 | Virtual Network + Subnet | `modules/networking/virtualNetwork.bicep` | `modules/networking/` | Hosts the private endpoint NIC |
+| Network Security Group | `modules/networking/networkSecurityGroup.bicep` | `modules/nsg/` | Zero-trust NSG on the PE subnet — allows only AFD backend HTTPS inbound |
 | Private DNS Zone | `modules/networking/privateDnsZone.bicep` | `modules/private_dns/` | Resolves storage FQDN to private IP |
 | Log Analytics Workspace | `modules/monitoring/logAnalyticsWorkspace.bicep` | `modules/monitoring/` | Centralised diagnostic logs and metrics |
 
@@ -42,6 +43,7 @@ All modules use **Azure Verified Modules (AVM)** as the implementation foundatio
 │   ├── agents/                  # Copilot custom coding agents
 │   │   ├── azure.md             # Azure WAF/CAF alignment agent
 │   │   ├── bicep.md             # Bicep IaC agent
+│   │   ├── debugger.md          # Diagnostics and troubleshooting agent
 │   │   ├── documentation.md     # Documentation agent
 │   │   ├── github-actions.md    # GitHub Actions CI/CD agent
 │   │   ├── planning.md          # Planning agent
@@ -52,9 +54,8 @@ All modules use **Azure Verified Modules (AVM)** as the implementation foundatio
 │   ├── bicep/                   # Bicep modules + main deployment
 │   │   ├── modules/
 │   │   │   ├── frontDoor/       # AFD Premium profile + WAF policy (AVM)
-│   │   │   ├── identity/       # User Assigned Managed Identity + RBAC (AVM)
 │   │   │   ├── monitoring/      # Log Analytics Workspace (AVM)
-│   │   │   ├── networking/      # VNet + PE subnet (AVM)
+│   │   │   ├── networking/      # VNet, NSG, Private Endpoint, Private DNS (AVM)
 │   │   │   └── storage/         # Storage account (AVM)
 │   │   ├── parameters/
 │   │   │   └── main.dev.bicepparam
@@ -64,6 +65,7 @@ All modules use **Azure Verified Modules (AVM)** as the implementation foundatio
 │       │   ├── front_door/      # AFD Premium profile + WAF policy (native azurerm)
 │       │   ├── monitoring/      # Log Analytics Workspace (AVM)
 │       │   ├── networking/      # VNet + PE subnet (AVM)
+│       │   ├── nsg/             # Network Security Group (AVM)
 │       │   ├── private_dns/     # Private DNS zone + VNet link (AVM)
 │       │   ├── private_endpoint/ # Private endpoint + NIC (AVM)
 │       │   └── storage/         # Storage account (AVM)
@@ -120,12 +122,12 @@ Each workflow job evaluates the effective `deploy_target` value and **skips** wh
 
 ---
 
-### Step 1 — Create an Azure Managed Identity
+### Step 1 — Create a Federated Identity for OIDC
 
-Create a **User-Assigned Managed Identity** that GitHub Actions will impersonate.
+Create an identity that GitHub Actions will impersonate via OIDC. You can use either a **User-Assigned Managed Identity** or an **App Registration (Service Principal)**; the `azure/login@v2` action's `client-id` input accepts either. The examples below use a User-Assigned Managed Identity.
 
 ```bash
-# Create a resource group to hold the managed identity (or use an existing one)
+# Create a resource group to hold the identity (or use an existing one)
 az group create --name rg-github-oidc --location eastus
 
 # Create the User-Assigned Managed Identity
@@ -161,7 +163,7 @@ az role assignment create \
   --scope "/subscriptions/$SUBSCRIPTION_ID"
 ```
 
-> **Least-privilege tip:** For tighter security, scope the role assignment to the specific resource groups (`rg-afdblobbic-dev-eus2` for Bicep and your Terraform RG) rather than the full subscription. Subscription-level Contributor is simpler for initial setup.
+> **Least-privilege tip:** For tighter security, scope the role assignment to the specific resource groups (`rg-afdblobbic-dev-cus` for Bicep and your Terraform RG) rather than the full subscription. Subscription-level Contributor is simpler for initial setup.
 
 ---
 
@@ -239,7 +241,7 @@ az storage container create \
   --auth-mode login
 ```
 
-**Grant the Managed Identity access to the state storage:**
+**Grant the federated identity access to the state storage:**
 
 ```bash
 # Storage Blob Data Contributor allows Terraform to read/write state blobs
@@ -265,7 +267,7 @@ All workflow configuration is stored as **GitHub Variables** (not secrets), sinc
 
 | Variable | Description | Example |
 |---|---|---|
-| `AZURE_CLIENT_ID` | Client ID of the Managed Identity | `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` |
+| `AZURE_CLIENT_ID` | Application (client) ID of the federated identity | `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` |
 | `AZURE_TENANT_ID` | Azure AD Tenant ID | `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` |
 | `AZURE_SUBSCRIPTION_ID` | Target Azure Subscription ID | `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` |
 | `AZURE_LOCATION` | Primary Azure region | `eastus` |
@@ -275,7 +277,7 @@ All workflow configuration is stored as **GitHub Variables** (not secrets), sinc
 
 | Variable | Description | Example |
 |---|---|---|
-| `BICEP_RESOURCE_GROUP` | Resource group for the Bicep deployment | `rg-afdblobbic-dev-eus2` |
+| `BICEP_RESOURCE_GROUP` | Resource group for the Bicep deployment | `rg-afdblobbic-dev-cus` |
 | `TF_STATE_RESOURCE_GROUP` | Resource group holding TF state storage | `rg-tfstate-dev` |
 | `TF_RESOURCE_GROUP` | Pre-existing resource group for the Terraform deployment | `rg-afdblobtf-dev` |
 | `TF_STATE_STORAGE_ACCOUNT` | Storage account name for TF state | `stafdblobstateabc123` |
@@ -299,7 +301,7 @@ gh variable set AZURE_SUBSCRIPTION_ID --body "$SUBSCRIPTION_ID"
 gh variable set AZURE_LOCATION        --body "eastus"
 
 # Set dev environment variables
-gh variable set BICEP_RESOURCE_GROUP      --env dev --body "rg-afdblobbic-dev-eus2"
+gh variable set BICEP_RESOURCE_GROUP      --env dev --body "rg-afdblobbic-dev-cus"
 gh variable set TF_STATE_RESOURCE_GROUP   --env dev --body "$TF_STATE_RG"
 gh variable set TF_RESOURCE_GROUP         --env dev --body "rg-afdblobtf-dev"
 gh variable set TF_STATE_STORAGE_ACCOUNT  --env dev --body "$TF_STATE_SA"
@@ -324,8 +326,8 @@ The Bicep and Terraform deployments intentionally use distinct `workloadName` / 
 
 | IaC Tool | `workloadName` / `workload_name` | Example Storage Account Name |
 |---|---|---|
-| Bicep | `afdblobbic` | `stafdblobbicdeveus2` |
-| Terraform | `afdblobtf` | `stafdblobtfdeveus2` |
+| Bicep | `afdblobbic` | `stafdblobbicdevcus` |
+| Terraform | `afdblobtf` | `stafdblobtfdevcus` |
 
 Both stacks can coexist in the same subscription simultaneously.
 
@@ -401,7 +403,7 @@ Azure Front Door uses health probes to determine whether each origin in an origi
 
 ### How Health Probes Work
 
-When enabled (`enableFrontDoorHealthProbe = true` in Bicep / `enable_front_door_health_probe = true` in Terraform), the AFD origin group is configured with a health probe that periodically sends an HTTPS `GET` request to:
+When enabled (`enableFrontDoorHealthProbe = true` in Bicep / `enable_front_door_health_probe = true` in Terraform), the AFD origin group is configured with a health probe that periodically sends an HTTPS `HEAD` request to:
 
 ```
 /health/health.txt
