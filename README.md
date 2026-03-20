@@ -6,12 +6,7 @@ This repository contains Infrastructure-as-Code (IaC) — in both **Azure Bicep*
 
 ## Architecture Overview
 
-```
-Internet ──► Azure Front Door Premium (WAF) ──► [Private Link] ──► Private Endpoint ──► Azure Blob Storage
-                                                                          │
-                                                             Private DNS Zone (privatelink.blob.core.windows.net)
-                                                                     linked to VNet
-```
+![Architecture Diagram](docs/architecture.svg)
 
 ### Deployed Resources
 
