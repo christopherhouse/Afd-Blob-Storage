@@ -255,6 +255,36 @@ The GitHub Actions workflow automates linting and deployment of both the Bicep a
 - **No stored secrets:** the workflow exchanges GitHub's short-lived OIDC token for an Azure access token at runtime.
 - **Triggers:** `push` to `main` (full deploy), `pull_request` (lint / validate only), `workflow_dispatch` (manual deploy).
 
+### Choosing What to Deploy — Bicep, Terraform, or Both
+
+The workflow supports deploying **Bicep only**, **Terraform only**, or **both** stacks. This is controlled by a single `deploy_target` value that accepts three options: `both`, `bicep`, or `terraform`.
+
+#### Manual runs (workflow_dispatch)
+
+When you trigger the workflow manually via **Actions → Run workflow**, a **"IaC stack(s) to lint and deploy"** dropdown lets you choose:
+
+| Option | Effect |
+|---|---|
+| `both` *(default)* | Lint and deploy both Bicep **and** Terraform |
+| `bicep` | Lint and deploy **only** Bicep |
+| `terraform` | Lint and deploy **only** Terraform |
+
+#### Automated runs (push / pull_request)
+
+For automated triggers (`push` to `main` or `pull_request`), the workflow reads the **optional** repository variable `DEPLOY_TARGET`:
+
+- Set `DEPLOY_TARGET` to `bicep`, `terraform`, or `both` under **Settings → Secrets and variables → Variables → Repository variables**.
+- If the variable is **not set**, the workflow defaults to `both`.
+
+```bash
+# Example: restrict automated CI/CD runs to Terraform only
+gh variable set DEPLOY_TARGET --body "terraform"
+```
+
+> **Override rule:** The `workflow_dispatch` dropdown always takes precedence over the repository variable. This lets you do a one-off deploy of a specific stack without changing the repo-wide default.
+
+Each workflow job evaluates the effective `deploy_target` value and **skips** when it doesn't match. For example, setting `deploy_target` to `bicep` causes the Terraform lint and deploy jobs to be skipped entirely.
+
 ---
 
 ### Step 1 — Create an Azure Managed Identity
@@ -406,6 +436,7 @@ All workflow configuration is stored as **GitHub Variables** (not secrets), sinc
 | `AZURE_TENANT_ID` | Azure AD Tenant ID | `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` |
 | `AZURE_SUBSCRIPTION_ID` | Target Azure Subscription ID | `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` |
 | `AZURE_LOCATION` | Primary Azure region | `eastus` |
+| `DEPLOY_TARGET` *(optional)* | Default IaC stack for push/PR triggers: `bicep`, `terraform`, or `both` (defaults to `both` when unset; overridden by the workflow_dispatch dropdown) | `both` |
 
 **`dev` environment variables** (Settings → Environments → dev → Environment variables):
 
