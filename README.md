@@ -2,8 +2,6 @@
 
 This repository contains Infrastructure-as-Code (IaC) — in both **Azure Bicep** and **Terraform** — for deploying Azure Front Door Premium with WAF that routes to an Azure Blob Storage account exposed exclusively via a Private Endpoint.
 
-> **Status:** ✅ Fully implemented — foundational infrastructure, AFD Premium, and WAF integration deployed via both Bicep and Terraform.
-
 ## Architecture Overview
 
 ![Architecture Diagram](docs/architecture.svg)
