@@ -152,14 +152,23 @@ The example below demonstrates how to use azcopy to upload to a storage account 
 
 ### Authenticate azcopy with a Service Principal
 
-Set the required environment variables before running azcopy:
+Set the following environment variables before running azcopy. When all four variables are present, azcopy authenticates automatically — there is no need to run `azcopy login`:
+
+| Variable | Value | Description |
+|---|---|---|
+| `AZCOPY_SPA_APPLICATION_ID` | `<app-registration-client-id>` | The Application (client) ID of the app registration |
+| `AZCOPY_SPA_CLIENT_SECRET` | `<app-registration-client-secret>` | The client secret for the app registration |
+| `AZCOPY_TENANT_ID` | `<entra-tenant-id>` | The Microsoft Entra (Azure AD) tenant ID |
+| `AZCOPY_AUTO_LOGIN_TYPE` | `SPN` | Tells azcopy to authenticate as a service principal automatically |
 
 ```bash
-export AZCOPY_SPA_CLIENT_SECRET="<service-principal-client-secret>"
-export AZCOPY_TENANT_ID="<azure-ad-tenant-id>"
-
-azcopy login --service-principal --application-id "<service-principal-app-id>"
+export AZCOPY_SPA_APPLICATION_ID="<app-registration-client-id>"
+export AZCOPY_SPA_CLIENT_SECRET="<app-registration-client-secret>"
+export AZCOPY_TENANT_ID="<entra-tenant-id>"
+export AZCOPY_AUTO_LOGIN_TYPE="SPN"
 ```
+
+> **Tip:** Retrieve the client secret from Azure Key Vault at runtime rather than hard-coding it. Clear `AZCOPY_SPA_CLIENT_SECRET` from the environment after use.
 
 ### Upload Files
 
