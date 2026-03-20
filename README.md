@@ -24,183 +24,13 @@ All modules use **Azure Verified Modules (AVM)** as the implementation foundatio
 
 ---
 
-## Post-Deployment Steps
+## Prerequisites
 
-After deploying (via either Bicep or Terraform), two manual steps are required before Azure Front Door can serve traffic to the storage account.
-
-### Step 1 — Create the Health Probe File
-
-This solution configures the AFD health probe to check the path `/health/health.txt` on the storage account origin. Create an empty file named `health.txt` in the **health** container so the probe can issue HTTP HEAD requests against it. The file can be empty — its contents are never read; AFD only needs the file to exist and return a successful response. See the [AFD Health Probes](#afd-health-probes) section below for a detailed explanation of the health probe configuration and why it works this way.
-
-> **Note:** Because the storage account has public network access disabled, you must have network connectivity to the storage account's data plane to upload the blob. This typically means running the upload from a machine that has access to the VNet (e.g., via VPN, ExpressRoute, a jump box inside the VNet, or Azure Cloud Shell with VNet integration).
-
-You can create the file via Azure CLI:
-
-```bash
-# Create an empty health.txt blob in the 'health' container
-az storage blob upload \
-  --account-name <storage-account-name> \
-  --container-name health \
-  --name health.txt \
-  --data "" \
-  --auth-mode login
-```
-
-Or via the Azure Portal:
-
-1. Navigate to your **Storage Account** → **Containers** → **health**.
-2. Click **Upload** and select (or create) an empty file named `health.txt`.
-
-### Step 2 — Approve the AFD Private Link Connection
-
-The Private Link connection from Azure Front Door to the storage account starts in a **Pending** state. **Traffic will not flow through AFD to storage until this connection is explicitly approved.**
-
-#### Why approval is required
-
-Azure Front Door initiates a Private Link connection to the storage account's private endpoint. Because this connection crosses trust boundaries, Azure requires a storage account owner to manually approve it before traffic can flow.
-
-#### Approve via Azure Portal
-
-1. Navigate to your **Storage Account** in the Azure Portal.
-2. Select **Networking** → **Private endpoint connections**.
-3. Find the connection with a description referencing **Azure Front Door** (the status will show **Pending**).
-4. Select the connection and click **Approve**.
-5. Confirm the approval in the dialog.
-
-#### Approve via Azure CLI
-
-```bash
-# Get the pending private endpoint connection name
-az storage account show \
-  --name <storage-account-name> \
-  --resource-group <resource-group-name> \
-  --query "privateEndpointConnections[?privateLinkServiceConnectionState.status=='Pending'].name" \
-  -o tsv
-
-# Approve the connection (substitute the name returned above)
-az storage account private-endpoint-connection approve \
-  --account-name <storage-account-name> \
-  --resource-group <resource-group-name> \
-  --name <connection-name>
-```
-
-> **Note:** DNS propagation and AFD origin health checks may take a few minutes to complete after approval. Monitor the AFD origin health in the Azure Portal under **Azure Front Door → Origin groups** to confirm the origin transitions to a **Healthy** state.
-
----
-
-## AFD Health Probes
-
-Azure Front Door uses health probes to determine whether each origin in an origin group is available and healthy. Understanding how health probes work with private blob storage origins is critical to a successful deployment.
-
-### How Health Probes Work
-
-When enabled (`enableFrontDoorHealthProbe = true` in Bicep / `enable_front_door_health_probe = true` in Terraform), the AFD origin group is configured with a health probe that periodically sends an HTTPS `GET` request to:
-
-```
-/health/health.txt
-```
-
-The probe interval is **100 seconds** (Bicep) or **30 seconds** (Terraform) — the values differ because each IaC track can be tuned independently; adjust the interval in the respective module to match your availability requirements. The origin group's load balancer evaluates health based on a sample of **4 probes**, requiring **3 successful responses** within a **50 ms additional-latency window** to consider the origin healthy.
-
-When the health probe is **disabled**, the origin group's health probe settings are omitted entirely (`healthProbeSettings: null` in Bicep, empty `health_probe {}` block in Terraform), and AFD assumes the origin is always healthy.
-
-### Why Anonymous Blob Access Is Required
-
-**Azure Front Door does not support Managed Identity authentication over Private Link connections for health probes.** Because the storage account has public network access disabled, the health probe traffic traverses the Private Link, where MI-based authentication is unavailable.
-
-To work around this limitation, the deployment:
-
-1. **Creates a `health` container** in the storage account with **anonymous blob-level read access** (`publicAccess: 'Blob'`). This container is only created when the health probe is enabled.
-2. **Sets `allowBlobPublicAccess: true`** (or `allow_nested_items_to_be_public = true` in Terraform) at the storage account level — but only when the health probe is enabled. This is required by Azure to permit anonymous access on individual containers.
-3. **Keeps the `upload` container fully private** — anonymous access is scoped to the `health` container only.
-
-After deployment, you must upload a small `health.txt` file to the `health` container so the probe has a resource to check:
-
-```bash
-echo "healthy" > /tmp/health.txt
-az storage blob upload \
-  --account-name <storage-account-name> \
-  --container-name health \
-  --name health.txt \
-  --file /tmp/health.txt \
-  --auth-mode login
-```
-
-### Security Risks of Anonymous Access
-
-Enabling the health probe requires `allowBlobPublicAccess: true` (Bicep) or `allow_nested_items_to_be_public = true` (Terraform) at the **storage account level**. While anonymous read access is scoped to the `health` container only — and the `upload` container where actual content is stored remains fully private — there are important security considerations:
-
-- **Account-level setting:** Setting `allowBlobPublicAccess` to `true` enables the *possibility* of anonymous access on any container in the storage account. If an administrator later creates a new container and inadvertently sets its access level to `Blob` or `Container`, that container's data would also be publicly readable.
-- **Compliance and policy:** Many organisations enforce Azure Policy rules that deny storage accounts with `allowBlobPublicAccess = true`. Enabling the health probe will conflict with such policies.
-- **Attack surface:** Even though the `health` container holds only a static `health.txt` file, any blob uploaded to that container is anonymously readable. Ensuring that only the intended health-check file exists in the container is an ongoing operational responsibility.
-
-> **Recommendation:** Weigh the security risk of enabling anonymous blob access against the operational value provided by health probes. If your security posture or compliance requirements do not permit anonymous access on the storage account, **set `enableFrontDoorHealthProbe = false`** (Bicep) or **`enable_front_door_health_probe = false`** (Terraform) and forego health probes entirely. In this configuration, AFD will skip health checks and treat the origin as always healthy, which is an acceptable trade-off for many workloads — especially those with a single origin.
-
----
-
-## Uploading Content with azcopy
-
-While Azure Front Door paired with Blob Storage is most commonly associated with **web and CDN workloads** (serving static sites, media, or cached content at the edge), this pattern can also serve as an **external integration point** — allowing you to receive blob data from external entities or publish data for them to consume. In this scenario, **azcopy** provides a convenient way for external parties to send or receive files through the AFD-fronted storage account.
-
-The example below demonstrates how to use azcopy to upload to a storage account using a **service principal** for authentication. Because the storage account has public network access disabled and shared-key access disabled, uploading content requires authentication via Microsoft Entra ID (Azure AD).
-
-### Prerequisites
-
-- [azcopy](https://learn.microsoft.com/azure/storage/common/storage-use-azcopy-v10) ≥ 10.x installed
-- A service principal (app registration) with the **Storage Blob Data Contributor** role assigned on the target storage account or the `upload` container
-- The service principal's tenant ID, application (client) ID, and client secret (or certificate)
-
-### Authenticate azcopy with a Service Principal
-
-Set the following environment variables before running azcopy. When all four variables are present, azcopy authenticates automatically — there is no need to run `azcopy login`:
-
-| Variable | Value | Description |
-|---|---|---|
-| `AZCOPY_SPA_APPLICATION_ID` | `<app-registration-client-id>` | The Application (client) ID of the app registration |
-| `AZCOPY_SPA_CLIENT_SECRET` | `<app-registration-client-secret>` | The client secret for the app registration |
-| `AZCOPY_TENANT_ID` | `<entra-tenant-id>` | The Microsoft Entra (Azure AD) tenant ID |
-| `AZCOPY_AUTO_LOGIN_TYPE` | `SPN` | Tells azcopy to authenticate as a service principal automatically |
-
-```bash
-export AZCOPY_SPA_APPLICATION_ID="<app-registration-client-id>"
-export AZCOPY_SPA_CLIENT_SECRET="<app-registration-client-secret>"
-export AZCOPY_TENANT_ID="<entra-tenant-id>"
-export AZCOPY_AUTO_LOGIN_TYPE="SPN"
-```
-
-> **Tip:** Retrieve the client secret from Azure Key Vault at runtime rather than hard-coding it. Clear `AZCOPY_SPA_CLIENT_SECRET` from the environment after use.
-
-### Upload Files
-
-When uploading to a storage account that is fronted by Azure Front Door with a custom domain, you must include two additional arguments:
-
-| Argument | Value | Why |
-|---|---|---|
-| `--from-to` | `LocalBlob` | Tells azcopy the transfer direction explicitly (local file system → Azure Blob Storage). Required for private storage accounts where automatic endpoint detection fails due to disabled public network access. |
-| `--trusted-microsoft-suffixes` | Your AFD endpoint hostname or custom domain (e.g., `blob.christopher-house.com`) | Allows azcopy to trust the non-standard hostname for authentication token scoping. Without this flag, azcopy may refuse to send credentials to a hostname that doesn't match `*.blob.core.windows.net`. |
-
-**Upload a single file:**
-
-```bash
-azcopy copy "./my-file.txt" \
-  "https://<storage-account-name>.blob.core.windows.net/upload/my-file.txt" \
-  --from-to LocalBlob \
-  --trusted-microsoft-suffixes "<your-afd-or-custom-domain>"
-```
-
-**Upload an entire directory:**
-
-```bash
-azcopy copy "./my-folder" \
-  "https://<storage-account-name>.blob.core.windows.net/upload/" \
-  --from-to LocalBlob \
-  --trusted-microsoft-suffixes "<your-afd-or-custom-domain>" \
-  --recursive
-```
-
-> **Tip:** If your storage account is configured with a custom domain via Azure Front Door (e.g., `blob.christopher-house.com`), use that domain as the `--trusted-microsoft-suffixes` value. If you are only using the default `.azurefd.net` endpoint, use that hostname instead.
-
-> **Note:** Because `shared_access_key_enabled` is set to `false` on the storage account, SAS tokens and storage account keys cannot be used for authentication. Service principal or managed identity authentication via Microsoft Entra ID is the only supported method.
+- Azure subscription with Contributor + User Access Administrator rights
+- [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) ≥ 2.55
+- [Bicep CLI](https://learn.microsoft.com/azure/azure-resource-manager/bicep/install) ≥ 0.25 *(for Bicep track)*
+- [Terraform](https://developer.hashicorp.com/terraform/install) ≥ 1.7 *(for Terraform track)*
+- GitHub repository environment secrets configured for OIDC authentication
 
 ---
 
@@ -245,13 +75,7 @@ azcopy copy "./my-folder" \
 └── README.md
 ```
 
-## Prerequisites
-
-- Azure subscription with Contributor + User Access Administrator rights
-- [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) ≥ 2.55
-- [Bicep CLI](https://learn.microsoft.com/azure/azure-resource-manager/bicep/install) ≥ 0.25 *(for Bicep track)*
-- [Terraform](https://developer.hashicorp.com/terraform/install) ≥ 1.7 *(for Terraform track)*
-- GitHub repository environment secrets configured for OIDC authentication
+---
 
 ## CI/CD Setup
 
@@ -504,6 +328,186 @@ The Bicep and Terraform deployments intentionally use distinct `workloadName` / 
 | Terraform | `afdblobtf` | `stafdblobtfdeveus2` |
 
 Both stacks can coexist in the same subscription simultaneously.
+
+---
+
+## Post-Deployment Steps
+
+After deploying (via either Bicep or Terraform), two manual steps are required before Azure Front Door can serve traffic to the storage account.
+
+### Step 1 — Create the Health Probe File
+
+This solution configures the AFD health probe to check the path `/health/health.txt` on the storage account origin. Create an empty file named `health.txt` in the **health** container so the probe can issue HTTP HEAD requests against it. The file can be empty — its contents are never read; AFD only needs the file to exist and return a successful response. See the [AFD Health Probes](#afd-health-probes) section below for a detailed explanation of the health probe configuration and why it works this way.
+
+> **Note:** Because the storage account has public network access disabled, you must have network connectivity to the storage account's data plane to upload the blob. This typically means running the upload from a machine that has access to the VNet (e.g., via VPN, ExpressRoute, a jump box inside the VNet, or Azure Cloud Shell with VNet integration).
+
+You can create the file via Azure CLI:
+
+```bash
+# Create an empty health.txt blob in the 'health' container
+az storage blob upload \
+  --account-name <storage-account-name> \
+  --container-name health \
+  --name health.txt \
+  --data "" \
+  --auth-mode login
+```
+
+Or via the Azure Portal:
+
+1. Navigate to your **Storage Account** → **Containers** → **health**.
+2. Click **Upload** and select (or create) an empty file named `health.txt`.
+
+### Step 2 — Approve the AFD Private Link Connection
+
+The Private Link connection from Azure Front Door to the storage account starts in a **Pending** state. **Traffic will not flow through AFD to storage until this connection is explicitly approved.**
+
+#### Why approval is required
+
+Azure Front Door initiates a Private Link connection to the storage account's private endpoint. Because this connection crosses trust boundaries, Azure requires a storage account owner to manually approve it before traffic can flow.
+
+#### Approve via Azure Portal
+
+1. Navigate to your **Storage Account** in the Azure Portal.
+2. Select **Networking** → **Private endpoint connections**.
+3. Find the connection with a description referencing **Azure Front Door** (the status will show **Pending**).
+4. Select the connection and click **Approve**.
+5. Confirm the approval in the dialog.
+
+#### Approve via Azure CLI
+
+```bash
+# Get the pending private endpoint connection name
+az storage account show \
+  --name <storage-account-name> \
+  --resource-group <resource-group-name> \
+  --query "privateEndpointConnections[?privateLinkServiceConnectionState.status=='Pending'].name" \
+  -o tsv
+
+# Approve the connection (substitute the name returned above)
+az storage account private-endpoint-connection approve \
+  --account-name <storage-account-name> \
+  --resource-group <resource-group-name> \
+  --name <connection-name>
+```
+
+> **Note:** DNS propagation and AFD origin health checks may take a few minutes to complete after approval. Monitor the AFD origin health in the Azure Portal under **Azure Front Door → Origin groups** to confirm the origin transitions to a **Healthy** state.
+
+---
+
+## AFD Health Probes
+
+Azure Front Door uses health probes to determine whether each origin in an origin group is available and healthy. Understanding how health probes work with private blob storage origins is critical to a successful deployment.
+
+### How Health Probes Work
+
+When enabled (`enableFrontDoorHealthProbe = true` in Bicep / `enable_front_door_health_probe = true` in Terraform), the AFD origin group is configured with a health probe that periodically sends an HTTPS `GET` request to:
+
+```
+/health/health.txt
+```
+
+The probe interval is **100 seconds** (Bicep) or **30 seconds** (Terraform) — the values differ because each IaC track can be tuned independently; adjust the interval in the respective module to match your availability requirements. The origin group's load balancer evaluates health based on a sample of **4 probes**, requiring **3 successful responses** within a **50 ms additional-latency window** to consider the origin healthy.
+
+When the health probe is **disabled**, the origin group's health probe settings are omitted entirely (`healthProbeSettings: null` in Bicep, empty `health_probe {}` block in Terraform), and AFD assumes the origin is always healthy.
+
+### Why Anonymous Blob Access Is Required
+
+**Azure Front Door does not support Managed Identity authentication over Private Link connections for health probes.** Because the storage account has public network access disabled, the health probe traffic traverses the Private Link, where MI-based authentication is unavailable.
+
+To work around this limitation, the deployment:
+
+1. **Creates a `health` container** in the storage account with **anonymous blob-level read access** (`publicAccess: 'Blob'`). This container is only created when the health probe is enabled.
+2. **Sets `allowBlobPublicAccess: true`** (or `allow_nested_items_to_be_public = true` in Terraform) at the storage account level — but only when the health probe is enabled. This is required by Azure to permit anonymous access on individual containers.
+3. **Keeps the `upload` container fully private** — anonymous access is scoped to the `health` container only.
+
+After deployment, you must upload a small `health.txt` file to the `health` container so the probe has a resource to check:
+
+```bash
+echo "healthy" > /tmp/health.txt
+az storage blob upload \
+  --account-name <storage-account-name> \
+  --container-name health \
+  --name health.txt \
+  --file /tmp/health.txt \
+  --auth-mode login
+```
+
+### Security Risks of Anonymous Access
+
+Enabling the health probe requires `allowBlobPublicAccess: true` (Bicep) or `allow_nested_items_to_be_public = true` (Terraform) at the **storage account level**. While anonymous read access is scoped to the `health` container only — and the `upload` container where actual content is stored remains fully private — there are important security considerations:
+
+- **Account-level setting:** Setting `allowBlobPublicAccess` to `true` enables the *possibility* of anonymous access on any container in the storage account. If an administrator later creates a new container and inadvertently sets its access level to `Blob` or `Container`, that container's data would also be publicly readable.
+- **Compliance and policy:** Many organisations enforce Azure Policy rules that deny storage accounts with `allowBlobPublicAccess = true`. Enabling the health probe will conflict with such policies.
+- **Attack surface:** Even though the `health` container holds only a static `health.txt` file, any blob uploaded to that container is anonymously readable. Ensuring that only the intended health-check file exists in the container is an ongoing operational responsibility.
+
+> **Recommendation:** Weigh the security risk of enabling anonymous blob access against the operational value provided by health probes. If your security posture or compliance requirements do not permit anonymous access on the storage account, **set `enableFrontDoorHealthProbe = false`** (Bicep) or **`enable_front_door_health_probe = false`** (Terraform) and forego health probes entirely. In this configuration, AFD will skip health checks and treat the origin as always healthy, which is an acceptable trade-off for many workloads — especially those with a single origin.
+
+---
+
+## Uploading Content with azcopy
+
+While Azure Front Door paired with Blob Storage is most commonly associated with **web and CDN workloads** (serving static sites, media, or cached content at the edge), this pattern can also serve as an **external integration point** — allowing you to receive blob data from external entities or publish data for them to consume. In this scenario, **azcopy** provides a convenient way for external parties to send or receive files through the AFD-fronted storage account.
+
+The example below demonstrates how to use azcopy to upload to a storage account using a **service principal** for authentication. Because the storage account has public network access disabled and shared-key access disabled, uploading content requires authentication via Microsoft Entra ID (Azure AD).
+
+### Prerequisites
+
+- [azcopy](https://learn.microsoft.com/azure/storage/common/storage-use-azcopy-v10) ≥ 10.x installed
+- A service principal (app registration) with the **Storage Blob Data Contributor** role assigned on the target storage account or the `upload` container
+- The service principal's tenant ID, application (client) ID, and client secret (or certificate)
+
+### Authenticate azcopy with a Service Principal
+
+Set the following environment variables before running azcopy. When all four variables are present, azcopy authenticates automatically — there is no need to run `azcopy login`:
+
+| Variable | Value | Description |
+|---|---|---|
+| `AZCOPY_SPA_APPLICATION_ID` | `<app-registration-client-id>` | The Application (client) ID of the app registration |
+| `AZCOPY_SPA_CLIENT_SECRET` | `<app-registration-client-secret>` | The client secret for the app registration |
+| `AZCOPY_TENANT_ID` | `<entra-tenant-id>` | The Microsoft Entra (Azure AD) tenant ID |
+| `AZCOPY_AUTO_LOGIN_TYPE` | `SPN` | Tells azcopy to authenticate as a service principal automatically |
+
+```bash
+export AZCOPY_SPA_APPLICATION_ID="<app-registration-client-id>"
+export AZCOPY_SPA_CLIENT_SECRET="<app-registration-client-secret>"
+export AZCOPY_TENANT_ID="<entra-tenant-id>"
+export AZCOPY_AUTO_LOGIN_TYPE="SPN"
+```
+
+> **Tip:** Retrieve the client secret from Azure Key Vault at runtime rather than hard-coding it. Clear `AZCOPY_SPA_CLIENT_SECRET` from the environment after use.
+
+### Upload Files
+
+When uploading to a storage account that is fronted by Azure Front Door with a custom domain, you must include two additional arguments:
+
+| Argument | Value | Why |
+|---|---|---|
+| `--from-to` | `LocalBlob` | Tells azcopy the transfer direction explicitly (local file system → Azure Blob Storage). Required for private storage accounts where automatic endpoint detection fails due to disabled public network access. |
+| `--trusted-microsoft-suffixes` | Your AFD endpoint hostname or custom domain (e.g., `blob.christopher-house.com`) | Allows azcopy to trust the non-standard hostname for authentication token scoping. Without this flag, azcopy may refuse to send credentials to a hostname that doesn't match `*.blob.core.windows.net`. |
+
+**Upload a single file:**
+
+```bash
+azcopy copy "./my-file.txt" \
+  "https://<storage-account-name>.blob.core.windows.net/upload/my-file.txt" \
+  --from-to LocalBlob \
+  --trusted-microsoft-suffixes "<your-afd-or-custom-domain>"
+```
+
+**Upload an entire directory:**
+
+```bash
+azcopy copy "./my-folder" \
+  "https://<storage-account-name>.blob.core.windows.net/upload/" \
+  --from-to LocalBlob \
+  --trusted-microsoft-suffixes "<your-afd-or-custom-domain>" \
+  --recursive
+```
+
+> **Tip:** If your storage account is configured with a custom domain via Azure Front Door (e.g., `blob.christopher-house.com`), use that domain as the `--trusted-microsoft-suffixes` value. If you are only using the default `.azurefd.net` endpoint, use that hostname instead.
+
+> **Note:** Because `shared_access_key_enabled` is set to `false` on the storage account, SAS tokens and storage account keys cannot be used for authentication. Service principal or managed identity authentication via Microsoft Entra ID is the only supported method.
 
 ---
 
