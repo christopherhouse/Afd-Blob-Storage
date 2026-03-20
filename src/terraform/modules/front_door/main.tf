@@ -215,6 +215,23 @@ resource "azurerm_cdn_frontdoor_firewall_policy" "this" {
   mode                       = var.waf_mode
   request_body_check_enabled = true
 
+  # Custom rule: block requests targeting the /health/* path so that internal
+  # health-probe endpoints are not reachable by external clients. The regex
+  # uses an inline case-insensitive flag (?i) to match regardless of casing.
+  custom_rule {
+    name     = "BlockHealthPath"
+    enabled  = true
+    priority = 100
+    type     = "MatchRule"
+    action   = "Block"
+
+    match_condition {
+      match_variable = "RequestUri"
+      operator       = "RegEx"
+      match_values   = ["(?i)health/"]
+    }
+  }
+
   # OWASP-based Default Rule Set (DRS) 2.1 — blocks common application
   # layer attacks. "Block" means matching requests are rejected with 403.
   managed_rule {
