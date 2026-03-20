@@ -8,7 +8,7 @@
 #
 # Jobs:
 #   lint-bicep       — az bicep build (lint/validate)
-#   lint-terraform   — terraform fmt + validate
+#   lint-terraform   — terraform fmt + validate + Checkov scan
 #   deploy-bicep     — az deployment group create  [main / dispatch only]
 #   deploy-terraform — terraform init + plan + apply [main / dispatch only]
 #
@@ -79,11 +79,13 @@ on:
           - terraform
 
 # ── Permissions ───────────────────────────────────────────────────────────────
-# id-token: write  — required to mint an OIDC token for Azure federated login
-# contents: read   — required by actions/checkout
+# id-token: write        — required to mint an OIDC token for Azure federated login
+# contents: read         — required by actions/checkout
+# security-events: write — required to upload Checkov SARIF to Code Scanning
 permissions:
   id-token: write
   contents: read
+  security-events: write
 
 # ── Concurrency ───────────────────────────────────────────────────────────────
 # Prevents two deployments to the same ref from running simultaneously.
@@ -206,6 +208,30 @@ jobs:
       # any remote API.
       - name: Terraform validate
         run: terraform -chdir=src/terraform validate
+
+      # ── 7. Checkov — IaC security / best-practice scan ────────────────────
+      # Runs Checkov static analysis against the Terraform configuration.
+      # Output is written as CLI (console) + SARIF (file) so results appear
+      # in both the workflow log and the GitHub Code Scanning tab.
+      # soft_fail: true ensures the SARIF upload step always executes.
+      - name: Run Checkov
+        id: checkov
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: src/terraform
+          framework: terraform
+          output_format: cli,sarif
+          output_file_path: console,results.sarif
+          soft_fail: true
+
+      # ── 8. Upload Checkov SARIF to Code Scanning ─────────────────────────
+      # Publishes findings to the repository Security → Code scanning tab.
+      - name: Upload Checkov SARIF
+        if: success() || failure()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: results.sarif
+          category: checkov-terraform
 
   # ════════════════════════════════════════════════════════════════════════════
   # JOB 3 — Deploy Bicep  [main push / workflow_dispatch only]
