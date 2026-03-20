@@ -19,8 +19,7 @@
 ###############################################################################
 
 module "storage_account" {
-  source  = "Azure/avm-res-storage-storageaccount/azurerm"
-  version = "0.6.7"
+  source = "git::https://github.com/Azure/terraform-azurerm-avm-res-storage-storageaccount.git?ref=1811739f46a74803e8b8e26a60785c428dd4cc4b" # v0.6.7
 
   # --- Identity & Placement ---
   name                = var.name

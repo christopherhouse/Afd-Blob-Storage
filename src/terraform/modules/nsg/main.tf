@@ -10,8 +10,7 @@
 ###############################################################################
 
 module "nsg" {
-  source  = "Azure/avm-res-network-networksecuritygroup/azurerm"
-  version = "0.4.0"
+  source = "git::https://github.com/Azure/terraform-azurerm-avm-res-network-networksecuritygroup.git?ref=68318782b31395de77e556fd3260d4a4036b0b93" # v0.4.0
 
   name                = var.name
   resource_group_name = var.resource_group_name
