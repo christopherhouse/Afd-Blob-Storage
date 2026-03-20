@@ -142,7 +142,9 @@ Enabling the health probe requires `allowBlobPublicAccess: true` (Bicep) or `all
 
 ## Uploading Content with azcopy
 
-Because the storage account has public network access disabled and shared-key access disabled, uploading content requires authentication via Microsoft Entra ID (Azure AD). The recommended approach for automation is to use **azcopy** with a **service principal**.
+While Azure Front Door paired with Blob Storage is most commonly associated with **web and CDN workloads** (serving static sites, media, or cached content at the edge), this pattern can also serve as an **external integration point** — allowing you to receive blob data from external entities or publish data for them to consume. In this scenario, **azcopy** provides a convenient way for external parties to send or receive files through the AFD-fronted storage account.
+
+The example below demonstrates how to use azcopy to upload to a storage account using a **service principal** for authentication. Because the storage account has public network access disabled and shared-key access disabled, uploading content requires authentication via Microsoft Entra ID (Azure AD).
 
 ### Prerequisites
 
