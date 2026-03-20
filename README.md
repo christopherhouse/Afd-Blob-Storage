@@ -443,6 +443,8 @@ Enabling the health probe requires `allowBlobPublicAccess: true` (Bicep) or `all
 - **Compliance and policy:** Many organisations enforce Azure Policy rules that deny storage accounts with `allowBlobPublicAccess = true`. Enabling the health probe will conflict with such policies.
 - **Attack surface:** Even though the `health` container holds only a static `health.txt` file, any blob uploaded to that container is anonymously readable. Ensuring that only the intended health-check file exists in the container is an ongoing operational responsibility.
 
+> **Note:** As an additional layer of defence, the WAF policy includes a custom rule (`BlockHealthPath`, priority 100) that blocks any external request whose URI matches `(?i)health/`. This means that even though the `health` container allows anonymous blob-level read access, public clients reaching the Front Door endpoint cannot retrieve content from the health path — only the AFD health-probe infrastructure (which bypasses WAF) can reach it.
+
 > **Recommendation:** Weigh the security risk of enabling anonymous blob access against the operational value provided by health probes. If your security posture or compliance requirements do not permit anonymous access on the storage account, **set `enableFrontDoorHealthProbe = false`** (Bicep) or **`enable_front_door_health_probe = false`** (Terraform) and forego health probes entirely. In this configuration, AFD will skip health checks and treat the origin as always healthy, which is an acceptable trade-off for many workloads — especially those with a single origin.
 
 ---
