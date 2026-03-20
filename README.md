@@ -38,15 +38,40 @@ All modules use **Azure Verified Modules (AVM)** as the implementation foundatio
 
 ---
 
-## Post-Deployment: Approve the AFD Private Link Connection
+## Post-Deployment Steps
 
-After deploying (via either Bicep or Terraform), the Private Link connection from Azure Front Door to the storage account starts in a **Pending** state. **Traffic will not flow through AFD to storage until this connection is explicitly approved.**
+After deploying (via either Bicep or Terraform), two manual steps are required before Azure Front Door can serve traffic to the storage account.
 
-### Why approval is required
+### Step 1 — Create the Health Probe File
+
+Azure Front Door's health probe expects a file at `/health/health.txt` in the storage account. Create an empty file named `health.txt` in the **health** container so the probe can issue HTTP HEAD requests against it. The file can be empty — its contents are never read; AFD only needs the file to exist and return a successful response.
+
+You can create the file via Azure CLI:
+
+```bash
+# Create an empty health.txt blob in the 'health' container
+az storage blob upload \
+  --account-name <storage-account-name> \
+  --container-name health \
+  --name health.txt \
+  --data "" \
+  --auth-mode login
+```
+
+Or via the Azure Portal:
+
+1. Navigate to your **Storage Account** → **Containers** → **health**.
+2. Click **Upload** and select (or create) an empty file named `health.txt`.
+
+### Step 2 — Approve the AFD Private Link Connection
+
+The Private Link connection from Azure Front Door to the storage account starts in a **Pending** state. **Traffic will not flow through AFD to storage until this connection is explicitly approved.**
+
+#### Why approval is required
 
 Azure Front Door initiates a Private Link connection to the storage account's private endpoint. Because this connection crosses trust boundaries, Azure requires a storage account owner to manually approve it before traffic can flow.
 
-### Approve via Azure Portal
+#### Approve via Azure Portal
 
 1. Navigate to your **Storage Account** in the Azure Portal.
 2. Select **Networking** → **Private endpoint connections**.
@@ -54,7 +79,7 @@ Azure Front Door initiates a Private Link connection to the storage account's pr
 4. Select the connection and click **Approve**.
 5. Confirm the approval in the dialog.
 
-### Approve via Azure CLI
+#### Approve via Azure CLI
 
 ```bash
 # Get the pending private endpoint connection name
