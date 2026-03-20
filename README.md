@@ -21,7 +21,6 @@ This repository contains Infrastructure-as-Code (IaC) — in both **Azure Bicep*
 | Virtual Network + Subnet | `modules/networking/virtualNetwork.bicep` | `modules/networking/` | Hosts the private endpoint NIC |
 | Private DNS Zone | `modules/networking/privateDnsZone.bicep` | `modules/private_dns/` | Resolves storage FQDN to private IP |
 | Log Analytics Workspace | `modules/monitoring/logAnalyticsWorkspace.bicep` | `modules/monitoring/` | Centralised diagnostic logs and metrics |
-| User Assigned Managed Identity | `modules/identity/userAssignedIdentity.bicep` | *(Bicep only)* | Identity for AFD origin group authentication |
 
 ## Foundational Infrastructure
 
