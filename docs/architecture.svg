@@ -1,0 +1,171 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 720" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <!-- Drop shadow filter -->
+    <filter id="shadow" x="-4%" y="-4%" width="108%" height="108%">
+      <feDropShadow dx="1" dy="2" stdDeviation="2" flood-opacity="0.12"/>
+    </filter>
+    <!-- Arrow marker -->
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#0078D4"/>
+    </marker>
+    <marker id="arrow-gray" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#6B7280"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1100" height="720" rx="8" fill="#F9FAFB"/>
+
+  <!-- Title -->
+  <text x="550" y="36" text-anchor="middle" font-size="18" font-weight="700" fill="#1F2937">Azure Front Door Premium → Private Blob Storage</text>
+  <text x="550" y="56" text-anchor="middle" font-size="11" fill="#6B7280">Secured with WAF, Private Link, Zero-Trust NSG &amp; Private DNS</text>
+
+  <!-- ===== Internet Client ===== -->
+  <rect x="52" y="80" width="140" height="56" rx="6" fill="#FFFFFF" stroke="#D1D5DB" stroke-width="1.2" filter="url(#shadow)"/>
+  <text x="122" y="104" text-anchor="middle" font-size="11" font-weight="600" fill="#374151">🌐 Internet</text>
+  <text x="122" y="122" text-anchor="middle" font-size="10" fill="#6B7280">Client / Browser</text>
+
+  <!-- Arrow: Internet → AFD -->
+  <line x1="192" y1="108" x2="290" y2="108" stroke="#0078D4" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="241" y="100" text-anchor="middle" font-size="9" fill="#0078D4" font-weight="600">HTTPS</text>
+
+  <!-- ===== Azure Front Door Premium Group ===== -->
+  <rect x="300" y="72" width="360" height="224" rx="8" fill="#EBF5FF" stroke="#0078D4" stroke-width="1.5" stroke-dasharray="6 3"/>
+  <text x="480" y="92" text-anchor="middle" font-size="12" font-weight="700" fill="#0078D4">Azure Front Door Premium</text>
+
+  <!-- WAF Policy -->
+  <rect x="320" y="104" width="150" height="52" rx="5" fill="#FFF7ED" stroke="#EA580C" stroke-width="1.2" filter="url(#shadow)"/>
+  <text x="395" y="124" text-anchor="middle" font-size="10" font-weight="600" fill="#9A3412">🛡️ WAF Policy</text>
+  <text x="395" y="140" text-anchor="middle" font-size="9" fill="#9A3412">Prevention Mode</text>
+  <text x="395" y="150" text-anchor="middle" font-size="8" fill="#B45309">DRS 2.1 + Bot Manager 1.0</text>
+
+  <!-- AFD Endpoint -->
+  <rect x="490" y="104" width="150" height="52" rx="5" fill="#FFFFFF" stroke="#0078D4" stroke-width="1.2" filter="url(#shadow)"/>
+  <text x="565" y="124" text-anchor="middle" font-size="10" font-weight="600" fill="#1E40AF">AFD Endpoint</text>
+  <text x="565" y="140" text-anchor="middle" font-size="9" fill="#6B7280">*.azurefd.net</text>
+  <text x="565" y="150" text-anchor="middle" font-size="8" fill="#6B7280">+ Custom Domain</text>
+
+  <!-- AFD Route -->
+  <rect x="320" y="170" width="150" height="44" rx="5" fill="#FFFFFF" stroke="#0078D4" stroke-width="1.2" filter="url(#shadow)"/>
+  <text x="395" y="190" text-anchor="middle" font-size="10" font-weight="600" fill="#1E40AF">Route ( /* )</text>
+  <text x="395" y="204" text-anchor="middle" font-size="9" fill="#6B7280">HTTPS Only, Redirect</text>
+
+  <!-- Origin Group -->
+  <rect x="490" y="170" width="150" height="44" rx="5" fill="#FFFFFF" stroke="#0078D4" stroke-width="1.2" filter="url(#shadow)"/>
+  <text x="565" y="190" text-anchor="middle" font-size="10" font-weight="600" fill="#1E40AF">Origin Group</text>
+  <text x="565" y="204" text-anchor="middle" font-size="9" fill="#6B7280">Health Probes Enabled</text>
+
+  <!-- Origin -->
+  <rect x="405" y="228" width="230" height="48" rx="5" fill="#FFFFFF" stroke="#0078D4" stroke-width="1.2" filter="url(#shadow)"/>
+  <text x="520" y="248" text-anchor="middle" font-size="10" font-weight="600" fill="#1E40AF">Origin (Blob Storage)</text>
+  <text x="520" y="264" text-anchor="middle" font-size="9" fill="#6B7280">Private Link Connection</text>
+
+  <!-- Arrow: AFD Origin → Private Link area -->
+  <line x1="520" y1="276" x2="520" y2="330" stroke="#0078D4" stroke-width="2" marker-end="url(#arrow)"/>
+  <rect x="468" y="298" width="105" height="18" rx="3" fill="#DBEAFE"/>
+  <text x="520" y="311" text-anchor="middle" font-size="9" font-weight="600" fill="#1E40AF">Private Link</text>
+
+  <!-- ===== Virtual Network ===== -->
+  <rect x="180" y="340" width="680" height="290" rx="8" fill="#F0FDF4" stroke="#16A34A" stroke-width="1.5" stroke-dasharray="6 3"/>
+  <text x="520" y="362" text-anchor="middle" font-size="12" font-weight="700" fill="#16A34A">Virtual Network (10.0.0.0/16)</text>
+
+  <!-- NSG Badge -->
+  <rect x="192" y="370" width="146" height="46" rx="5" fill="#FEF2F2" stroke="#DC2626" stroke-width="1.2" filter="url(#shadow)"/>
+  <text x="265" y="389" text-anchor="middle" font-size="10" font-weight="600" fill="#991B1B">🔒 NSG (Zero-Trust)</text>
+  <text x="265" y="404" text-anchor="middle" font-size="8" fill="#991B1B">Allow AFD:443 In, Deny All</text>
+
+  <!-- PE Subnet -->
+  <rect x="210" y="426" width="620" height="118" rx="6" fill="#FFFFFF" stroke="#16A34A" stroke-width="1" filter="url(#shadow)"/>
+  <text x="520" y="446" text-anchor="middle" font-size="11" font-weight="600" fill="#166534">Subnet: Private Endpoints (10.0.1.0/24)</text>
+
+  <!-- Private Endpoint -->
+  <rect x="396" y="458" width="248" height="72" rx="5" fill="#EFF6FF" stroke="#2563EB" stroke-width="1.2" filter="url(#shadow)"/>
+  <text x="520" y="480" text-anchor="middle" font-size="10" font-weight="600" fill="#1E40AF">Private Endpoint</text>
+  <text x="520" y="496" text-anchor="middle" font-size="9" fill="#6B7280">Group: blob</text>
+  <text x="520" y="510" text-anchor="middle" font-size="9" fill="#6B7280">NIC bound to PE Subnet</text>
+
+  <!-- Arrow: VNet → PE (comes from top) -->
+  <line x1="520" y1="340" x2="520" y2="458" stroke="#0078D4" stroke-width="1.5" stroke-dasharray="4 2"/>
+
+  <!-- Private DNS Zone -->
+  <rect x="210" y="558" width="300" height="56" rx="5" fill="#FDF4FF" stroke="#9333EA" stroke-width="1.2" filter="url(#shadow)"/>
+  <text x="360" y="578" text-anchor="middle" font-size="10" font-weight="600" fill="#6B21A8">🔗 Private DNS Zone</text>
+  <text x="360" y="596" text-anchor="middle" font-size="9" fill="#7C3AED">privatelink.blob.core.windows.net</text>
+  <text x="360" y="608" text-anchor="middle" font-size="8" fill="#6B7280">Linked to VNet · Resolves blob FQDN → PE IP</text>
+
+  <!-- Arrow: PE ↔ DNS -->
+  <line x1="440" y1="530" x2="400" y2="558" stroke="#9333EA" stroke-width="1.2" stroke-dasharray="3 2" marker-end="url(#arrow-gray)"/>
+
+  <!-- ===== Storage Account ===== -->
+  <rect x="740" y="380" width="230" height="236" rx="8" fill="#FFFBEB" stroke="#D97706" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="855" y="402" text-anchor="middle" font-size="12" font-weight="700" fill="#92400E">Azure Blob Storage</text>
+  <text x="855" y="418" text-anchor="middle" font-size="9" fill="#B45309">Public Access: Disabled</text>
+  <text x="855" y="430" text-anchor="middle" font-size="9" fill="#B45309">Shared-Key Auth: Disabled</text>
+  <text x="855" y="442" text-anchor="middle" font-size="9" fill="#B45309">TLS 1.2+ · HTTPS Only</text>
+
+  <!-- upload container -->
+  <rect x="758" y="454" width="194" height="36" rx="4" fill="#FFFFFF" stroke="#D97706" stroke-width="1" filter="url(#shadow)"/>
+  <text x="855" y="470" text-anchor="middle" font-size="10" font-weight="600" fill="#92400E">📦 upload</text>
+  <text x="855" y="482" text-anchor="middle" font-size="8" fill="#6B7280">Private (Auth Required)</text>
+
+  <!-- health container -->
+  <rect x="758" y="498" width="194" height="36" rx="4" fill="#FFFFFF" stroke="#D97706" stroke-width="1" filter="url(#shadow)"/>
+  <text x="855" y="514" text-anchor="middle" font-size="10" font-weight="600" fill="#92400E">💚 health</text>
+  <text x="855" y="526" text-anchor="middle" font-size="8" fill="#6B7280">Blob Anon Read (Probes)</text>
+
+  <!-- Blob Service Diagnostics -->
+  <rect x="758" y="542" width="194" height="34" rx="4" fill="#FEF3C7" stroke="#D97706" stroke-width="0.8"/>
+  <text x="855" y="558" text-anchor="middle" font-size="9" fill="#92400E">📊 Diagnostic Settings</text>
+  <text x="855" y="570" text-anchor="middle" font-size="8" fill="#6B7280">Read/Write/Delete Logs</text>
+
+  <!-- Pending Approval badge -->
+  <rect x="758" y="582" width="194" height="24" rx="4" fill="#FEF2F2" stroke="#DC2626" stroke-width="0.8"/>
+  <text x="855" y="598" text-anchor="middle" font-size="9" font-weight="600" fill="#DC2626">⚠️ Requires PL Approval</text>
+
+  <!-- Arrow: PE → Storage -->
+  <line x1="644" y1="494" x2="740" y2="494" stroke="#D97706" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- ===== Log Analytics Workspace ===== -->
+  <rect x="52" y="480" width="148" height="72" rx="6" fill="#F0F9FF" stroke="#0284C7" stroke-width="1.2" filter="url(#shadow)"/>
+  <text x="126" y="502" text-anchor="middle" font-size="10" font-weight="600" fill="#0C4A6E">📈 Log Analytics</text>
+  <text x="126" y="518" text-anchor="middle" font-size="10" font-weight="600" fill="#0C4A6E">Workspace</text>
+  <text x="126" y="534" text-anchor="middle" font-size="9" fill="#6B7280">30-day retention</text>
+  <text x="126" y="546" text-anchor="middle" font-size="8" fill="#6B7280">Blob + AFD diagnostics</text>
+
+  <!-- Arrow: AFD diagnostics → LAW -->
+  <line x1="300" y1="240" x2="126" y2="475" stroke="#0284C7" stroke-width="1" stroke-dasharray="4 2" marker-end="url(#arrow-gray)"/>
+  <text x="182" y="350" text-anchor="middle" font-size="8" fill="#0284C7" transform="rotate(-56, 182, 350)">AFD Diagnostics</text>
+
+  <!-- Arrow: Storage diagnostics → LAW -->
+  <line x1="740" y1="560" x2="200" y2="520" stroke="#0284C7" stroke-width="1" stroke-dasharray="4 2" marker-end="url(#arrow-gray)"/>
+  <text x="470" y="530" text-anchor="middle" font-size="8" fill="#0284C7">Blob Diagnostics</text>
+
+  <!-- ===== User Assigned MI ===== -->
+  <rect x="52" y="370" width="148" height="56" rx="6" fill="#ECFDF5" stroke="#059669" stroke-width="1.2" filter="url(#shadow)"/>
+  <text x="126" y="392" text-anchor="middle" font-size="10" font-weight="600" fill="#065F46">🔑 Managed Identity</text>
+  <text x="126" y="408" text-anchor="middle" font-size="9" fill="#6B7280">User Assigned</text>
+  <text x="126" y="420" text-anchor="middle" font-size="8" fill="#6B7280">Storage Blob Data Reader</text>
+
+  <!-- ===== Legend ===== -->
+  <rect x="52" y="650" width="996" height="58" rx="6" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1"/>
+  <text x="72" y="670" font-size="10" font-weight="700" fill="#374151">Legend:</text>
+  <!-- Solid line -->
+  <line x1="130" y1="666" x2="170" y2="666" stroke="#0078D4" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="178" y="670" font-size="9" fill="#374151">Data Flow (HTTPS)</text>
+  <!-- Dashed line -->
+  <line x1="310" y1="666" x2="350" y2="666" stroke="#6B7280" stroke-width="1.2" stroke-dasharray="4 2"/>
+  <text x="358" y="670" font-size="9" fill="#374151">Diagnostic / Config Link</text>
+  <!-- Private Link badge -->
+  <rect x="520" y="657" width="72" height="16" rx="3" fill="#DBEAFE"/>
+  <text x="556" y="669" text-anchor="middle" font-size="9" fill="#1E40AF">Private Link</text>
+  <text x="600" y="670" font-size="9" fill="#374151">Azure Private Link</text>
+  <!-- VNet boundary -->
+  <rect x="730" y="658" width="30" height="14" rx="3" fill="#F0FDF4" stroke="#16A34A" stroke-width="1" stroke-dasharray="4 2"/>
+  <text x="768" y="670" font-size="9" fill="#374151">VNet Boundary</text>
+  <!-- AFD boundary -->
+  <rect x="870" y="658" width="30" height="14" rx="3" fill="#EBF5FF" stroke="#0078D4" stroke-width="1" stroke-dasharray="4 2"/>
+  <text x="908" y="670" font-size="9" fill="#374151">AFD Scope</text>
+
+  <!-- Footer -->
+  <text x="550" y="700" text-anchor="middle" font-size="9" fill="#9CA3AF">IaC: Azure Bicep + Terraform · GitHub Actions CI/CD · OIDC Authentication</text>
+</svg>
